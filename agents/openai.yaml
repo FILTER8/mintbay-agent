@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mintbay Agent"
+  short_description: "Share on-chain NFTs and galleries with Mintbay"
+  brand_color: "#C9FF00"
