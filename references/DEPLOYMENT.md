@@ -2,10 +2,10 @@
 
 ## Read-only development (current)
 
-1. Fetch build manifest, config and artwork by build ID; check SHA-256 and schema (see BUILDS.md).
+1. Fetch build manifest, config, original artwork and compiled artwork by build ID; hash exact response bytes, check `compiledArtwork.source.rawArtworkSha256` lineage, schema, bitmasks and pixel round-trip (see BUILDS.md). Reject missing compiled file for the new V5 workflow.
 2. Fetch the official Net NFT integration reference and pinned Mintbay Net base. Identify constructor/admin semantics; pick exactly one base.
-3. Generate collection-specific data, renderer and Collection.sol based only on validated input. Enforce all selected mint modes/limits, platform fee and payout settings, royalty semantics, and ownership requirements **or block deployment**.
-4. Compile with pinned compiler/dependency versions, run automated tests (minting, public/creator/holder, fee accounting, exclusions, burn/remint, caps, admin transfer, Net failure cases, tokenURI/SVG, fuzz/edge cases); record gas usage and EIP-170 bytecode size.
+3. Generate collection-specific data, renderer and Collection.sol using verified compiled art values exactly; cross-check against original artwork. Enforce all selected mint modes/limits, platform fee and payout settings, royalty semantics, and ownership requirements **or block deployment**.
+4. Compile with pinned compiler/dependency versions, run automated tests against the **actual compiled Solidity in a local EVM** (minting, public/creator/holder, fee accounting, exclusions, burn/remint, caps, admin transfer, Net failure cases, tokenURI/SVG pixel and metadata round-trip, fuzz/edge cases); record gas usage and EIP-170 bytecode size.
 5. Return explicit PASS/FAIL and all unsupported configurations with exact source/bytecode hashes. Don't deploy or upload chain transactions.
 
 ## Future, only after production bundle is reviewed

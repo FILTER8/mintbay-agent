@@ -52,3 +52,7 @@ This repository contains documentation only in v0.1. It does not accept wallet s
 ## V5 Studio builds (new, development)
 
 This is the **single canonical Mintbay agent skill**. The separate `mintbay-net-collection-template` repository is historical reference only, not a required creator-facing step. Collection-specific source is generated from an immutable Mintbay API build using Net/ERC721A conventions. See `references/BUILDS.md`, `references/NET-INTEGRATION.md`, `references/DEPLOYMENT.md`, and `examples/deploy-v5.md`. Currently read-only; do not use the draft build to initiate deployment.
+
+## Compiled-artwork V5 build workflow (October 2026)
+
+New Studio uploads now publish an additional immutable `compiled-artwork.json` alongside `config.json` and `artwork.json`. Example draft: https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9 . Agents must fetch all three, verify raw-body SHA-256 hashes and compiler source lineage, validate every trait/weight/pixel/exclusion mask against the original, then generate Solidity constants from the compiled file. See `references/BUILDS.md` and `examples/deploy-v5.md`. This feature enables safer read-only code generation; it **does not** mean the Mintbay V5 minting addons or contract bundle have passed production review.
