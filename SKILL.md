@@ -1,6 +1,6 @@
 ---
 name: mintbay-agent
-description: Share individual fully on-chain NFTs and selected NFT galleries using Mintbay public web links; help agents construct verifiable X-card URLs. Use when asked to display, share, or create an NFT gallery, or when discussing future Mintbay minting or launchpad integration.
+description: Use Mintbay to share fully on-chain NFTs and galleries, inspect Mintbay V5 Studio build manifests and artwork, and guide a Bankr agent through read-only Net-integrated ERC721A generation, compilation and testing. Use for Mintbay collection builds, Bankr integration, deployment planning and gallery links.
 ---
 
 # Mintbay Agent
@@ -42,8 +42,14 @@ For verified social previews, use 1–16 positive integer token IDs and a grid w
 - Output the **complete, literal HTTPS URL**, never placeholders or truncated addresses. Place URL on a separate line in plain text for X replies. Don't end replies with a colon or just the NFT name.
 - X may choose whether and when to generate cards; a valid Mintbay URL doesn't guarantee a preview. No native image posting is implied.
 
-## Future Mintbay work
+## Mintbay V5 Studio builds and Bankr (development / read-only)
 
-Minting, contract deployment, platform fees, and any future agent-facing ownership endpoint are **planned** and not implemented by this skill. Do not fabricate working transaction or API instructions. See [ROADMAP.md](references/ROADMAP.md).
+- **Do not use the retired `mintbay-net-collection-template` GitHub repository as a required input.** Use the immutable Mintbay Studio build URL as the source of collection-specific artwork and configuration.
+- For any `/v1/builds/{id}` URL, read [BUILDS.md](references/BUILDS.md) and download the *actual* manifest, `/config`, and `/artwork`. Verify response types and available SHA-256 values. A build with `status: draft` and `template.verified: false` is **not deployable by default**.
+- To generate source, follow [NET-INTEGRATION.md](references/NET-INTEGRATION.md), then [DEPLOYMENT.md](references/DEPLOYMENT.md). Preserve the pinned Net integration; only generate collection-specific Solidity from the chosen, validated artwork + config. Do not silently change supply, fee recipient, royalties, chain, ownership, mint privileges, artwork or trait selection. Check every optional feature or report unsupported.
+- Until tested V5 sources and compatible ABI are published, work **STRICTLY READ-ONLY**: generate, compile, test, estimate, review and debug without submitting, signing, deploying, minting or spending funds. If user separately approves later deployment, check that the required reviewed bundle, verification and Bankr workflow actually exist first.
+- After an explicitly approved and confirmed future deployment, registration with Mintbay is an internal backend action described in [DEPLOYMENT.md]; **never** expose registration credentials in a browser, public prompt, skill or social message. Discovery requires the first minted NFT.
+- For a concrete safe prompt use [deploy-v5.md](examples/deploy-v5.md). Existing token/gallery sharing instructions above remain valid.
+- No stable public wallet-ownership API has been documented in this skill. Never invent holdings. See [ROADMAP.md](references/ROADMAP.md).
 
 For URL rules, chains and test cases see [URLS.md](references/URLS.md).

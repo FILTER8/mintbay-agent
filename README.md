@@ -48,3 +48,7 @@ Provide `SKILL.md` to a **Bankr agent configured to load custom skills**, accord
 ## Safety
 
 This repository contains documentation only in v0.1. It does not accept wallet secrets, host a signing service, deploy contracts or promise ownership verification without data access. Review any future code and fee structures before deploying mainnet contracts.
+
+## V5 Studio builds (new, development)
+
+This is the **single canonical Mintbay agent skill**. The separate `mintbay-net-collection-template` repository is historical reference only, not a required creator-facing step. Collection-specific source is generated from an immutable Mintbay API build using Net/ERC721A conventions. See `references/BUILDS.md`, `references/NET-INTEGRATION.md`, `references/DEPLOYMENT.md`, and `examples/deploy-v5.md`. Currently read-only; do not use the draft build to initiate deployment.
