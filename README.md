@@ -56,3 +56,9 @@ This is the **single canonical Mintbay agent skill**. The separate `mintbay-net-
 ## Compiled-artwork V5 build workflow (October 2026)
 
 New Studio uploads now publish an additional immutable `compiled-artwork.json` alongside `config.json` and `artwork.json`. Example draft: https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9 . Agents must fetch all three, verify raw-body SHA-256 hashes and compiler source lineage, validate every trait/weight/pixel/exclusion mask against the original, then generate Solidity constants from the compiled file. See `references/BUILDS.md` and `examples/deploy-v5.md`. This feature enables safer read-only code generation; it **does not** mean the Mintbay V5 minting addons or contract bundle have passed production review.
+
+## Mintbay protocol freeze candidate (October 2026)
+
+See [`references/PROTOCOL-RULES.md`](references/PROTOCOL-RULES.md) and [`references/TEST-MATRIX.md`](references/TEST-MATRIX.md) for agreed platform invariants and executable acceptance criteria. The canonical `MintbayNetIntegratedERC721A` contract is **not yet security-approved or pinned**; `assets/net/` remain earlier reference implementations.
+
+Run `node scripts/validate-build.mjs https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9` for a *baseline* integrity verification, not a full pixel/mask or EVM audit.

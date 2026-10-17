@@ -42,6 +42,16 @@ For verified social previews, use 1–16 positive integer token IDs and a grid w
 - Output the **complete, literal HTTPS URL**, never placeholders or truncated addresses. Place URL on a separate line in plain text for X replies. Don't end replies with a colon or just the NFT name.
 - X may choose whether and when to generate cards; a valid Mintbay URL doesn't guarantee a preview. No native image posting is implied.
 
+## Mintbay protocol invariants (binding requirements; candidate code unapproved)
+
+**Before generating, compiling or reviewing a Mintbay collection**, load [PROTOCOL-RULES.md](references/PROTOCOL-RULES.md), [TEST-MATRIX.md](references/TEST-MATRIX.md) and the relevant build references. NEVER treat an AI-generated Solidity report, SHA-256 assertion or textual test table as an approved protocol base.
+
+- Immutable 5% paid-primary Mintbay fee to `0x04084943Dea97044de6feE8fA9adEfC2DC41f6A5`. The fee address/rate must not be creator-configurable or agent-changeable. **Stop any prospective deployment** if approved bytecode/source deviates; the final audited base SHA-256 is **not pinned yet**.
+- All Mintbay collections expose authorized real `burn(uint256)`; burned supply is *not* remintable. Burn & Claim is an optional **free**, atomic 1-for-1 route into a destination collection, accepting owner-managed approved Mintbay source collections (no Solidity five-source limit). Every mint consumes the same FCFS lifetime supply; no protected creator reserve.
+- Honor all disabled feature gates. In particular One Shot must not run unless enabled; standard burn is always enabled. Holder Claim accepts only configured eligible sources and contract-owned pricing. Public wallet limit 0 means unlimited.
+- Use official Limit Break ERC721AC/BasicRoyalties and preserve tested Net hooks. Do not fabricate a custom validator. See [NET-INTEGRATION.md](references/NET-INTEGRATION.md).
+- Run `node scripts/validate-build.mjs <build-url>` for baseline raw-payload integrity (Node 18+), **then** independently test all pixel/mask/deadlock invariants and Solidity/EVM behavior. Script output is not a complete audit.
+
 ## Mintbay V5 Studio builds and Bankr (development / read-only)
 
 - **Do not use the retired `mintbay-net-collection-template` GitHub repository as a required input.** Use the immutable Mintbay Studio build URL as the source of collection-specific artwork and configuration.

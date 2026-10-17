@@ -1,13 +1,15 @@
-# Bankr — new compiled-artwork V5 test (STRICTLY READ-ONLY)
+# Bankr — protocol adherence test for Mintbay draft (READ-ONLY)
 
-@bankrbot reinstall/update the canonical Mintbay skill from https://github.com/FILTER8/mintbay-agent and load `references/BUILDS.md`, `references/NET-INTEGRATION.md`, `references/DEPLOYMENT.md` plus the official Net Protocol NFT collection reference.
+@bankrbot reinstall the canonical skill from https://github.com/FILTER8/mintbay-agent and read `SKILL.md`, `references/PROTOCOL-RULES.md`, `references/TEST-MATRIX.md`, `references/BUILDS.md`, `references/NET-INTEGRATION.md`, `references/DEPLOYMENT.md`.
 
-Review **this** Mintbay V5 build: https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9
+Build: https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9
 
-1. Read the manifest and fetch **config, artwork, and compiledArtwork** from its exact URLs. Calculate SHA-256 on every raw response body and compare to manifest. Confirm `compiledArtwork.source.rawArtworkSha256` matches the raw artwork hash. This is an immutable **draft**, not authorization to deploy.
-2. Audit every layer/trait order, ID, name, numeric weight, indexed palette color, pixel bytes, 25 symmetric incompatibility pairs and mask words against original source. Test byte-by-byte/pixel-by-pixel round-trip; fail on any substitution.
-3. Generate collection-specific Net/ERC721A source using **verified compiledArtwork values** as Solidity constants. Select standard/HoodWallet base strictly from config. Do not reindex, change palette or invent traits. Preserve Net integration.
-4. Compile, inspect EIP-170 runtime size, and **run local EVM tests against emitted Solidity**: deterministic selection, no forbidden pairs across seeds, exact SVG/metadata pixels and names, weights/rarity impacts. Test selected minting features and report every unsupported addon separately; don't silently omit or 'fix' choices.
-5. Provide exact generated source file hashes, compilation/test logs, PASS/FAIL and discrepancies. If raw data or verification tools are unavailable, state exactly which check did not run. No claims based only on simulations divorced from emitted Solidity.
+**Do not generate/deploy a supposedly final or audited Mintbay base.** There is not yet an approved/pinned base hash. Treat the last candidate contract report as unverified source, not proof of tests.
 
-**STRICTLY READ-ONLY.** Do not sign, deploy, mint, broadcast transactions, register a deployment, or spend funds.
+1. Run `node scripts/validate-build.mjs <build-url>`. Report literal output. Independently check full original/compiled artwork parity including pixel decoding, palette, masks, incompatibility graph and deadlocks (script only provides baseline validation).
+2. Summarize the permanent protocol: immutable 500 bps fee to `0x04084943Dea97044de6feE8fA9adEfC2DC41f6A5`; one FCFS lifetime minted cap; no reserved creator supply; universal authorized burn; optionally enabled free atomic 1:1 Burn & Claim to approved source collection; owner-managed multiple sources, no Solidity maximum 5; Holder Claim separate (can be paid, never burns); optional One Shot must be gated.
+3. Audit candidate `MintbayNetIntegratedERC721A.sol` **only if its complete source is available**. For each optional config flag in this build, produce an exact check table: enabled state, constructor/immutable gate, callable function and negative test. Distinguish compulsory `burn()` from optional `burnAndClaim()`.
+4. Design and run actual local EVM tests with two Mintbay collections A (source) and B (destination). Check source approval/real burn, source circulating supply decrease with lifetime minted unchanged, destination 1:1 mint, cap 500 never refills, atomic rollback, owner gates, fees and transfer hooks. Show full runnable test files, package lockfile, commands and *real* output. If unavailable, write NOT TESTED, not PASS.
+5. Explain exactly which portions can be pinned now and which remain unverified. Do not change any fee constants, artwork traits, claim prices or protocol rules. Identify unsupported configurations, never substitute them silently.
+
+**STRICTLY READ-ONLY**: no blockchain deployment, signatures, mint transactions, registration or funds spent.

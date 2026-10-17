@@ -20,3 +20,7 @@ Primary external reference: https://netprotocol.app/skill.md ; NFT-specific refe
 - Prior source example: `EightByEightPortrait.sol` + `PortraitData.sol` + `PortraitRenderer.sol`. Those contracts demonstrate the assembly pattern, not generalized code.
 
 Keep versioned source hashes when publishing approved template bundles. Never assert the above sources or generated contracts are audited/compiled merely because they are in this skill.
+
+## Canonical Mintbay base direction (not yet pinned)
+
+The old Net bases under `assets/net/` are **historical reference sources only**, not complete V5 protocol templates. The new candidate `MintbayNetIntegratedERC721A` extends official Limit Break `ERC721AC`, `OwnableBasic`, and `BasicRoyalties` and must preserve Net's proven messaging. Do **not** publish the candidate as immutable until executable tests, exact dependency versions and source review are complete. The candidate is intentionally **not bundled** in this skill as an approved base. Consult [PROTOCOL-RULES.md](PROTOCOL-RULES.md) for universal burn, FCFS cap, claim fees, feature gating and two-collection composability.

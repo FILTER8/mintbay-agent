@@ -2,6 +2,9 @@
 
 ## Read-only development (current)
 
+**Stop gate:** Do not deploy if canonical `MintbayNetIntegratedERC721A.sol` has not been approved and full-file SHA-256 pinned with independently executed EVM tests. Current skill has no such approved base. Verify all protocol rules in [PROTOCOL-RULES.md](PROTOCOL-RULES.md) and [TEST-MATRIX.md](TEST-MATRIX.md).
+
+
 1. Fetch build manifest, config, original artwork and compiled artwork by build ID; hash exact response bytes, check `compiledArtwork.source.rawArtworkSha256` lineage, schema, bitmasks and pixel round-trip (see BUILDS.md). Reject missing compiled file for the new V5 workflow.
 2. Fetch the official Net NFT integration reference and pinned Mintbay Net base. Identify constructor/admin semantics; pick exactly one base.
 3. Generate collection-specific data, renderer and Collection.sol using verified compiled art values exactly; cross-check against original artwork. Enforce all selected mint modes/limits, platform fee and payout settings, royalty semantics, and ownership requirements **or block deployment**.
