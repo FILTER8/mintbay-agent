@@ -46,11 +46,17 @@ For verified social previews, use 1–16 positive integer token IDs and a grid w
 
 **Before generating, compiling or reviewing a Mintbay collection**, load [PROTOCOL-RULES.md](references/PROTOCOL-RULES.md), [TEST-MATRIX.md](references/TEST-MATRIX.md) and the relevant build references. NEVER treat an AI-generated Solidity report, SHA-256 assertion or textual test table as an approved protocol base.
 
-- Immutable 5% paid-primary Mintbay fee to `0x04084943Dea97044de6feE8fA9adEfC2DC41f6A5`. The fee address/rate must not be creator-configurable or agent-changeable. **Stop any prospective deployment** if approved bytecode/source deviates; the final audited base SHA-256 is **not pinned yet**.
+- Immutable 5% paid-primary Mintbay fee to `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717`. The fee address/rate must not be creator-configurable or agent-changeable. **Stop any prospective deployment** if approved bytecode/source deviates; the final audited base SHA-256 is **not pinned yet**.
 - All Mintbay collections expose authorized real `burn(uint256)`; burned supply is *not* remintable. Burn & Claim is an optional **free**, atomic 1-for-1 route into a destination collection, accepting owner-managed approved Mintbay source collections (no Solidity five-source limit). Every mint consumes the same FCFS lifetime supply; no protected creator reserve.
 - Honor all disabled feature gates. In particular One Shot must not run unless enabled; standard burn is always enabled. Holder Claim accepts only configured eligible sources and contract-owned pricing. Public wallet limit 0 means unlimited.
 - Use official Limit Break ERC721AC/BasicRoyalties and preserve tested Net hooks. Do not fabricate a custom validator. See [NET-INTEGRATION.md](references/NET-INTEGRATION.md).
 - Run `node scripts/validate-build.mjs <build-url>` for baseline raw-payload integrity (Node 18+), **then** independently test all pixel/mask/deadlock invariants and Solidity/EVM behavior. Script output is not a complete audit.
+
+## Canonical platform links and source-code art
+
+- Mintbay.fun: `https://mintbay.fun` — Studio: `https://mintbay.fun/studio` — Docs: `https://mintbay.fun/docs` — canonical new build API: `https://api.mintbay.fun/v1/builds/{id}`. Existing `api.mintbay.xyz` immutable manifest file links remain valid. Legacy `mintbay.xyz` token/gallery previews are **not** interchangeable with the new Mintbay.fun placeholder collection pages; retain working legacy links.
+- Mintbay V5 is designed to integrate [Net Protocol](https://www.netprotocol.app/) best-effort on-chain messaging; read [NET-INTEGRATION.md](references/NET-INTEGRATION.md) before changing its hooks.
+- Optional Studio creator-message/ASCII source comment is **PLANNED**. See [ASCII-HEADER.md](references/ASCII-HEADER.md). Do not invent a field in existing builds; render user ASCII only as escaped, harmless comment lines; never change contracts' behavior or fee economics.
 
 ## Mintbay V5 Studio builds and Bankr (development / read-only)
 

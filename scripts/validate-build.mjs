@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 // Standard-library-only, read-only Mintbay V5 integrity and baseline schema check.
-// Usage: node scripts/validate-build.mjs https://api.mintbay.xyz/v1/builds/<uuid>
+// Usage: node scripts/validate-build.mjs https://api.mintbay.fun/v1/builds/<uuid>
 import { createHash } from 'node:crypto';
 
 const url = process.argv[2];
-if (!url || !/^https:\/\/[^/]+\/v1\/builds\/[0-9a-f-]{36}\/?$/i.test(url)) {
-  console.error('Usage: node scripts/validate-build.mjs https://api.mintbay.xyz/v1/builds/<id>');
+if (!url || !/^https:\/\/api\.mintbay\.(?:fun|xyz)\/v1\/builds\/[0-9a-f-]{36}\/?$/i.test(url)) {
+  console.error('Usage: node scripts/validate-build.mjs https://api.mintbay.fun/v1/builds/<id>');
   process.exit(2);
 }
 function sha256(b) { return createHash('sha256').update(b).digest('hex'); }
 async function download(u) {
-  if (new URL(u).origin !== new URL(url).origin) throw Error('Cross-origin build resource refused: '+u);
+  const parsed = new URL(u);
+  if (parsed.protocol !== 'https:' || !['api.mintbay.fun', 'api.mintbay.xyz'].includes(parsed.hostname) || parsed.port) {
+    throw Error('Untrusted build resource origin refused: ' + u);
+  }
   const res = await fetch(u, { redirect: 'error' });
   if (!res.ok) throw Error(`HTTP ${res.status}: ${u}`);
   return Buffer.from(await res.arrayBuffer());

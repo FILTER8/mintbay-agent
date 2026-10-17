@@ -2,7 +2,7 @@
 
 **On-chain creation, minting and sharing infrastructure for humans and AI agents.**
 
-This public repository is an integration reference for AI agents using [Mintbay](https://mintbay.xyz), beginning with links for **individual NFT artwork** and **on-chain NFT galleries** that can display large image previews on X.
+This public repository is an integration reference for AI agents using [Mintbay legacy gallery](https://mintbay.xyz), beginning with links for **individual NFT artwork** and **on-chain NFT galleries** that can display large image previews on X.
 
 It is designed to **complement**, not replace, Mintbay's existing NFT launchpad and smart contracts.
 
@@ -42,7 +42,7 @@ Provide `SKILL.md` to a **Bankr agent configured to load custom skills**, accord
 ## Related projects
 
 - [Mintbay Studio](https://studio.mintbay.xyz) — on-chain pixel-art creator.
-- [Mintbay](https://mintbay.xyz) — collection discovery, minting and gallery sharing.
+- [Mintbay legacy gallery](https://mintbay.xyz) — collection discovery, minting and gallery sharing.
 - [Mintbay NET collection template](https://github.com/FILTER8/mintbay-net-collection-template) — separate example of AI-assisted NET collection deployment.
 
 ## Safety
@@ -55,10 +55,20 @@ This is the **single canonical Mintbay agent skill**. The separate `mintbay-net-
 
 ## Compiled-artwork V5 build workflow (October 2026)
 
-New Studio uploads now publish an additional immutable `compiled-artwork.json` alongside `config.json` and `artwork.json`. Example draft: https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9 . Agents must fetch all three, verify raw-body SHA-256 hashes and compiler source lineage, validate every trait/weight/pixel/exclusion mask against the original, then generate Solidity constants from the compiled file. See `references/BUILDS.md` and `examples/deploy-v5.md`. This feature enables safer read-only code generation; it **does not** mean the Mintbay V5 minting addons or contract bundle have passed production review.
+New Studio uploads now publish an additional immutable `compiled-artwork.json` alongside `config.json` and `artwork.json`. Example draft: https://api.mintbay.fun/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9 . Agents must fetch all three, verify raw-body SHA-256 hashes and compiler source lineage, validate every trait/weight/pixel/exclusion mask against the original, then generate Solidity constants from the compiled file. See `references/BUILDS.md` and `examples/deploy-v5.md`. This feature enables safer read-only code generation; it **does not** mean the Mintbay V5 minting addons or contract bundle have passed production review.
 
 ## Mintbay protocol freeze candidate (October 2026)
 
 See [`references/PROTOCOL-RULES.md`](references/PROTOCOL-RULES.md) and [`references/TEST-MATRIX.md`](references/TEST-MATRIX.md) for agreed platform invariants and executable acceptance criteria. The canonical `MintbayNetIntegratedERC721A` contract is **not yet security-approved or pinned**; `assets/net/` remain earlier reference implementations.
 
-Run `node scripts/validate-build.mjs https://api.mintbay.xyz/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9` for a *baseline* integrity verification, not a full pixel/mask or EVM audit.
+Run `node scripts/validate-build.mjs https://api.mintbay.fun/v1/builds/ebd5e0d8-2919-4f8b-bce9-80ebc5ae00e9` for a *baseline* integrity verification, not a full pixel/mask or EVM audit.
+
+## Mintbay.fun deployment ecosystem (new)
+
+- [Mintbay.fun](https://mintbay.fun) / [Studio](https://mintbay.fun/studio) / [Docs](https://mintbay.fun/docs)
+- Immutable V5 build API: `https://api.mintbay.fun/v1/builds/{id}`; older immutable manifests may still reference `api.mintbay.xyz`. Do not rewrite them.
+- Permanent immutable 5% primary-mint fee recipient for **future canonical V5 contracts**: `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717`. The deployed or approved V5 contract base is not bundled/pinned; documentation updates do not change any existing on-chain contract.
+- [Net Protocol](https://www.netprotocol.app/) messaging integration; Bankr remains the intended agent-assisted flow, not an assertion that public `@bankrbot` can auto-install this skill.
+- Optional source-code ASCII-art header is planned, not currently supported by Studio/Worker; see `references/ASCII-HEADER.md`.
+
+Legacy NFT token and gallery share URLs remain on `mintbay.xyz` until new share pages exist.
