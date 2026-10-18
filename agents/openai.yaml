@@ -1,4 +1,4 @@
 interface:
-  display_name: "Mintbay"
-  short_description: "Share on-chain NFTs; review V5 Studio builds with Net/Bankr"
-  brand_color: "#C9FF00"
+  display_name: "Mintbay Agent"
+  short_description: "Deploy Mintbay NFT collections using Bankr"
+  default_prompt: "Deploy my Mintbay NFT collection from a Studio Build ID on Robinhood Chain using Bankr."

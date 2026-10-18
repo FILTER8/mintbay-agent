@@ -1,24 +1,35 @@
-# Mintbay V5 Bankr workflow — gated, development stage
+# Mintbay one-command deployment (Net-style encode-only)
 
-## Read-only development (current)
+## 1. Prepare (no wallet or secret)
 
-**Stop gate:** Do not deploy if canonical `MintbayNetIntegratedERC721A.sol` has not been approved and full-file SHA-256 pinned with independently executed EVM tests. Current skill has no such approved base. Verify all protocol rules in [PROTOCOL-RULES.md](PROTOCOL-RULES.md) and [TEST-MATRIX.md](TEST-MATRIX.md).
+```bash
+npm install --prefix assets/contracts/v5 --no-audit --no-fund
+node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID
+```
 
+The script validates Mintbay V5 build content, generates collection-specific Solidity, resolves all dependency source files, compiles, and exports:
 
-1. Fetch build manifest, config, original artwork and compiled artwork by build ID; hash exact response bytes, check `compiledArtwork.source.rawArtworkSha256` lineage, schema, bitmasks and pixel round-trip (see BUILDS.md). Reject missing compiled file for the new V5 workflow.
-2. Fetch the official Net NFT integration reference and pinned Mintbay Net base. Identify constructor/admin semantics; pick exactly one base.
-3. Generate collection-specific data, renderer and Collection.sol using verified compiled art values exactly; cross-check against original artwork. Enforce all selected mint modes/limits, platform fee and payout settings, royalty semantics, and ownership requirements **or block deployment**.
-4. Compile with pinned compiler/dependency versions, run automated tests against the **actual compiled Solidity in a local EVM** (minting, public/creator/holder, fee accounting, exclusions, burn/remint, caps, admin transfer, Net failure cases, tokenURI/SVG pixel and metadata round-trip, fuzz/edge cases); record gas usage and EIP-170 bytecode size.
-5. Return explicit PASS/FAIL and all unsupported configurations with exact source/bytecode hashes. Don't deploy or upload chain transactions.
+- `transaction.json` — `chainId:4663`, `to:null`, creation `data`, `value:"0"`.
+- `StandardInput.json` — full exact compiler input suitable for source verification.
+- `abi.json`, `prepare-result.json`, `sources/`.
 
-## Future, only after production bundle is reviewed
+Compiler pinned in `assets/contracts/v5/package.json`: solc 0.8.24, viaIR, optimizer runs 200, Cancun. Reproduce the compiler output from this input; never patch generated sources behind the user's back. Enforce bytecode size checks.
 
-A future deployment requires **separate explicit user permission for the exact chain, contract sources, gas spending and mint privileges**, verified template version and passing tests. Then Bankr may submit deployment, wait for confirmed receipt and explorer source verification. The agent must stop on any mismatched source, owner, chain, fee, payout or missing verification; never deploy an improvised substitute.
+## 2. Broadcast with Bankr
 
-## Silent registration only after success
+Use Bankr's actual contract-deployment/contract-creation API to submit the unsigned transaction. **Verify that the Bankr API accepts null/omitted `to`; not all sign-submit endpoints permit this.** The `@bankr submit transaction to 0x...` form in Net's skill is for ordinary contract calls, not creation transactions.
 
-The API Worker has a private `POST /v1/deployments` and public `GET /v1/collections`. On confirmed deployment an authorized backend integration registers `{buildId, chainId, contractAddress, deploymentTxHash}`. Worker verifies deployment evidence and persists registration. **Do not put `DEPLOYMENT_REGISTER_TOKEN` or any bearer token in public GitHub skills, X prompts, static Next.js pages or artwork/config.** The agent can receive a short-lived server-issued authorization or call an approved server-side Bankr bridge. Merely knowing the HTTP endpoint is not access to its secret.
+Show a summary of chain, deployment address/wallet, fee behavior, mint price, maximum supply, expected runtime size, and user-visible warnings. Ask for confirmation before irreversibly broadcasting. No pasted private keys and no hardcoded sample deployment addresses.
 
-Registered, not-yet-minted collections remain hidden. Worker looks for the first genuine ERC721 mint, then publishes the token's on-chain image in `GET /v1/collections`. The 5-minute cron is an early development implementation; costs and scale should be reviewed before public launch.
+## 3. Receipt and verification
 
-**Important**: as of this reference update, the V5 contract bundle is not approved for production. Existing built-in build API endpoints do not prove deployment, source verification or feature parity.
+Once Bankr returns a confirmed successful receipt, use the receipt's `contractAddress` (not a guessed address) and save tx hash, chain ID, build ID, generation hashes, compiler version, and StandardInput JSON. Submit that Standard JSON to the chain's actual supported explorer verification API using credentials supplied privately by the operator. Verification is a second asynchronous state; return its confirmed link only if it succeeds. `verification pending` is an acceptable truthful response.
+
+Post-deployment Mintbay registration, if available, is a separate authenticated backend action, not a prerequisite for an on-chain deployment. Do not commit credentials or expose an unauthenticated registration route.
+
+## 4. What a successful preparation proves
+
+- Correct build content hashes, lineage, generator output and clean Solidity compilation.
+- Valid EIP-170 and EIP-3860 size limits.
+
+It does **not** prove deployment, EVM economic invariants, guaranteed royalty enforcement, explorer verification or audit. Execute live EVM tests before marketing this contract implementation as secure. Creator approval permits a knowingly requested transaction, not false verification claims.
