@@ -157,11 +157,9 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
             _transferOwnership(initialOwner_);
         }
 
-        try NET.sendMessage(
-            string.concat("Deployed ", name_, " (", symbol_, ")"),
-            TOPIC_COLLECTION,
-            abi.encode(address(this), name_, symbol_, maxSupply_, price_)
-        ) {} catch {}
+        // Net collection registration convention: text must be the raw name.
+        // Keep the registration best-effort, as with other Net hooks.
+        try NET.sendMessage(name_, TOPIC_COLLECTION, abi.encodePacked(tx.origin)) {} catch {}
     }
 
     // --- ERC165 Disambiguation ---
