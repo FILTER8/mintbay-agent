@@ -56,7 +56,7 @@ For verified social previews, use 1–16 positive integer token IDs and a grid w
 
 - Mintbay.fun: `https://mintbay.fun` — Studio: `https://mintbay.fun/studio` — Docs: `https://mintbay.fun/docs` — canonical new build API: `https://api.mintbay.fun/v1/builds/{id}`. Existing `api.mintbay.xyz` immutable manifest file links remain valid. Legacy `mintbay.xyz` token/gallery previews are **not** interchangeable with the new Mintbay.fun placeholder collection pages; retain working legacy links.
 - Mintbay V5 is designed to integrate [Net Protocol](https://www.netprotocol.app/) best-effort on-chain messaging; read [NET-INTEGRATION.md](references/NET-INTEGRATION.md) before changing its hooks.
-- Optional Studio creator-message/ASCII source comment is **PLANNED**. See [ASCII-HEADER.md](references/ASCII-HEADER.md). Do not invent a field in existing builds; render user ASCII only as escaped, harmless comment lines; never change contracts' behavior or fee economics.
+- Optional Studio creator-message/Unicode source comment can be present in published config, but Solidity insertion is **NOT AUTOMATED**. See [ASCII-HEADER.md](references/ASCII-HEADER.md). Do not invent a field in existing builds; render creator Unicode text only as harmless, individually prefixed `//` comment lines; never change contracts' behavior or fee economics.
 
 ## Mintbay V5 Studio builds and Bankr (development / read-only)
 

@@ -13,6 +13,6 @@ The candidate source from Bankr's Oct 17 report is **not** the approved hash. Re
 
 Return full test files, executable commands, **real stdout logs**, checked dependency lockfile, all Solidity source files and contract hashes. If anything is unavailable, report NOT TESTED. Never claim PASS merely from reading code.
 
-## Planned optional ASCII header checks
+## Optional Unicode source header checks
 
-Validate no-comment-breakout or Solidity source injection, no ABI/storage/behavior change, deterministic source hashes, bounded size, round-trip alignment of spaces/backslashes, and rejection of invalid non-ASCII controls; see [ASCII-HEADER.md](ASCII-HEADER.md). Re-test 500 bps and immutable fee recipient after source changes.
+Validate no-comment-breakout or Solidity source injection, no ABI/storage/behavior change, deterministic source hashes, bounded size, round-trip alignment of spaces/backslashes, and rejection of control/format/surrogate characters and acceptance of visible Unicode block art; see [ASCII-HEADER.md](ASCII-HEADER.md). Re-test 500 bps and immutable fee recipient after source changes.
