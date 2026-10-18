@@ -14,6 +14,35 @@ const input = arg[0], dest = resolve(pick('--out') || './generated');
 const safeJson = JSON.stringify;
 const number = (x,min,max) => Number.isSafeInteger(x)&&x>=min&&x<=max;
 const addr = x=>typeof x==='string'&&/^0x[\da-fA-F]{40}$/.test(x);
+// Keccak-256 (Ethereum, not NIST SHA3-256), standard Node.js without dependencies.
+const ROT=[[0,36,3,41,18],[1,44,10,45,2],[62,6,43,15,61],[28,55,25,21,56],[27,20,39,8,14]];
+const RC=[0x1n,0x8082n,0x800000000000808an,0x8000000080008000n,0x808bn,0x80000001n,0x8000000080008081n,0x8000000000008009n,0x8an,0x88n,0x80008009n,0x8000000an,0x8000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,0x8000000000008002n,0x8000000000000080n,0x800an,0x800000008000000an,0x8000000080008081n,0x8000000000008080n,0x80000001n,0x8000000080008008n];
+const MASK64=(1n<<64n)-1n;
+const rotl=(x,n)=>n===0?x:((x<<BigInt(n))|(x>>BigInt(64-n)))&MASK64;
+function keccak256(bytes){
+ const state=Array(25).fill(0n), rate=136;
+ const pad=Buffer.alloc(Math.ceil((bytes.length+1)/rate)*rate || rate);
+ bytes.copy(pad);pad[bytes.length]=0x01;pad[pad.length-1]|=0x80;
+ for(let pos=0;pos<pad.length;pos+=rate){
+  for(let i=0;i<rate;i++)state[i>>3]^=BigInt(pad[pos+i])<<BigInt((i%8)*8);
+  for(const rc of RC){
+   const c=Array.from({length:5},(_,x)=>state[x]^state[x+5]^state[x+10]^state[x+15]^state[x+20]);
+   const d=Array.from({length:5},(_,x)=>c[(x+4)%5]^rotl(c[(x+1)%5],1));
+   for(let y=0;y<5;y++)for(let x=0;x<5;x++)state[x+5*y]^=d[x];
+   const b=Array(25).fill(0n);
+   for(let y=0;y<5;y++)for(let x=0;x<5;x++)b[y+5*((2*x+3*y)%5)]=rotl(state[x+5*y],ROT[x][y]);
+   for(let y=0;y<5;y++)for(let x=0;x<5;x++)state[x+5*y]=b[x+5*y]^((~b[(x+1)%5+5*y])&b[(x+2)%5+5*y]);
+   state[0]^=rc;
+  }
+ }
+ const out=Buffer.alloc(32);for(let i=0;i<32;i++)out[i]=Number((state[i>>3]>>BigInt((i%8)*8))&255n);
+ return out.toString('hex');
+}
+function checksumAddress(value){
+ ok(addr(value),`Invalid Solidity address: ${value}`);
+ const lower=value.slice(2).toLowerCase(), hashed=keccak256(Buffer.from(lower,'ascii'));
+ return '0x'+Array.from(lower,(ch,i)=>parseInt(hashed[i],16)>=8?ch.toUpperCase():ch).join('');
+}
 const sol = x => JSON.stringify(x).replace(/[\u2028\u2029]/g, c=>c==='\u2028'?'\\u2028':'\\u2029');
 const nameSafe = x => /^[a-zA-Z_][\w]*$/.test(x);
 const money = x => {ok(typeof x==='string' && /^(0|[1-9]\d*)(\.\d{1,18})?$/.test(x), 'Invalid ETH decimal'); const [a,b='']=x.split('.'); return (BigInt(a)*10n**18n + BigInt(b.padEnd(18,'0'))).toString();};
@@ -73,7 +102,7 @@ function makeData(s,id) {
  const names=id+'Data';
  const layers=c.layers;
  const funcs=[];
- funcs.push(switchFn(layers.map(x=>`(${x.offset},${x.count})`),'layerOffset','(uint256,uint256)','(0,0)'));
+ funcs.push(switchFn(layers.map(x=>`(${x.offset},${x.count})`),'layerOffset','uint256, uint256','(0,0)'));
  funcs.push(switchFn(c.traits.map(t=>String(t.weight)),'weight','uint256'));
  funcs.push(switchFn(c.traits.map(t=>'unicode'+sol(jsonFragment(t.name))),'traitName','string memory','""'));
  funcs.push(switchFn(layers.map(x=>'unicode'+sol(jsonFragment(x.name))),'layerName','string memory','""'));
@@ -86,8 +115,8 @@ function makeData(s,id) {
 function makeRenderer(s,id){const {grid,c}=s;const nm=id+'Renderer',dt=id+'Data';return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport {Base64} from "solady/src/utils/Base64.sol";\nimport {LibString} from "solady/src/utils/LibString.sol";\nimport {${dt}} from "./${dt}.sol";\nlibrary ${nm} {\n    using LibString for uint256;\n    function svg(bytes32 seed) internal pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        uint8[${grid*grid}] memory pixels_;\n        for(uint256 l=0;l<${c.layers.length};l++){bytes memory p=${dt}.pixels(chosen[l]);for(uint256 i=0;i<${grid*grid};i++)if(uint8(p[i])!=0)pixels_[i]=uint8(p[i]);}\n        string memory rects="";\n        for(uint256 i=0;i<${grid*grid};i++)if(pixels_[i]!=0){rects=string.concat(rects,'<rect x="',(i%${grid}).toString(),'" y="',(i/${grid}).toString(),'" width="1" height="1" fill="',${dt}.paletteColor(pixels_[i]),'"/>');}\n        return string.concat('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">',rects,'</svg>');\n    }\n    function attributes(bytes32 seed) internal pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        string memory a="";\n        for(uint256 l=0;l<${c.layers.length};l++){a=string.concat(a,l==0?"":",",'{"trait_type":"',${dt}.layerName(l),'","value":"',${dt}.traitName(chosen[l]),'"}');}\n        return string.concat('[',a,']');\n    }\n    function tokenURI(uint256 id,bytes32 seed) internal pure returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed),'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
 function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;const header=typeof co.sourceHeaderArt==='string'?co.sourceHeaderArt.replace(/\r\n?/g,'\n').split('\n').map(x=>'// '+x).join('\n')+'\n':'';
  const initial=co.deployerAddress||'0x0000000000000000000000000000000000000000';
- const lines=sources.map(x=>`        approvedClaimCollections[${x.contract}]=ApprovedClaim(true,${money(x.mintPriceEth)});`).join('\n');
- return `// SPDX-License-Identifier: MIT\n${header}pragma solidity ^0.8.24;\nimport {MintbayNetIntegratedERC721A} from "./contracts/MintbayNetIntegratedERC721A.sol";\nimport {${id}Renderer} from "./${id}Renderer.sol";\ncontract ${id} is MintbayNetIntegratedERC721A {\n    constructor() MintbayNetIntegratedERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${configAddress(s)},${co.payoutRecipient},${royalty.enabled?royalty.recipient:co.payoutRecipient},${royalty.enabled?royalty.bps:0}\n    ) {\n${lines}\n    }\n    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return ${id}Renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
+ const lines=sources.map(x=>`        approvedClaimCollections[${checksumAddress(x.contract)}]=ApprovedClaim(true,${money(x.mintPriceEth)});`).join('\n');
+ return `// SPDX-License-Identifier: MIT\n${header}pragma solidity ^0.8.24;\nimport {MintbayNetIntegratedERC721A} from "./contracts/MintbayNetIntegratedERC721A.sol";\nimport {${id}Renderer} from "./${id}Renderer.sol";\ncontract ${id} is MintbayNetIntegratedERC721A {\n    constructor() MintbayNetIntegratedERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n${lines}\n    }\n    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return ${id}Renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
 }
 function configAddress(s){return s.expectedDeployer;}
 async function main(){const all=await load();const s=check(all);s.expectedDeployer=all.config.deployment.expectedDeployer;
