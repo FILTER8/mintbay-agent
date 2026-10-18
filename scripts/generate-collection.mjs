@@ -77,7 +77,10 @@ function check({manifest,config,artwork,compiledArtwork:c}) {
  ok(addr(config.deployment.expectedDeployer),'Standard EOA expectedDeployer address required');
  ok(v.royalties?.bps===co.royaltyBps && (v.royalties.enabled ? addr(co.royaltyReceiver):co.royaltyBps===0),'Royalty mismatch');
  ok(v.royalties.mode!=='enforced' || v.royalties.validatorConfiguredAtDeployment===false,'Validator activation cannot be asserted');
- ok(v.burnAndClaim?.enabled===false,'Burn & Claim is not supported by the current candidate base (source-approval issue).');
+ const burnSources=v.burnAndClaim?.enabled ? v.burnAndClaim.sourceCollections : [];
+ ok(Array.isArray(burnSources) && burnSources.length<=5 && (!v.burnAndClaim?.enabled || burnSources.length>0),'Burn & Claim requires 1-5 source collections');
+ for(const source of burnSources) ok(addr(typeof source==='string'?source:source?.contract),'Invalid burn source collection');
+ ok(new Set(burnSources.map(x=>(typeof x==='string'?x:x.contract).toLowerCase())).size===burnSources.length,'Duplicate burn source');
  const sources=v.holderClaim?.enabled ? v.holderClaim.sourceCollections : [];
  ok(Array.isArray(sources)&&sources.length<=5 && (v.holderClaim.enabled?sources.length>0:true),'Bad claim collections');
  for(const s of sources) {ok(addr(s.contract),'Bad claim source');money(s.mintPriceEth);}
@@ -93,7 +96,14 @@ function check({manifest,config,artwork,compiledArtwork:c}) {
  const exp=Array.from({length:n},()=>Array(words).fill(0n));
  for(const [i,t] of c.traits.entries()) {const original=artwork.layers[t.layerIndex]?.traits[t.indexInLayer];ok(original?.id===t.id,'Wrong index');for(const other of original.incompatibleWith){ok(ids.has(other),'Unknown exclusion');const j=ids.get(other);ok(j!==i&&c.traits[j].layerIndex!==t.layerIndex,'Invalid exclusion');exp[i][Math.floor(j/256)]|=1n<<BigInt(j%256);exp[j][Math.floor(i/256)]|=1n<<BigInt(i%256);}}
  for(const [i,t] of c.traits.entries())for(let w=0;w<words;w++)ok(BigInt(t.exclusionMask[w])===exp[i][w],`Mask parity ${i}:${w}`);
- return {co,v,c,grid,n,words,sources};
+ return {co,v,c,grid,n,words,sources,burnSources};
+}
+const RESERVED = new Set('abstract after alias apply as assembly auto break byte case catch constant constructor continue contract default delete do else emit enum error event external fallback false final for from function global if immutable implements import in indexed inline interface internal is let library mapping match memory modifier new null of override payable pragma private public pure receive reference relocatable return returns revert selfdestruct solidity static storage string struct super supports switch this throw true try type typeof unchecked using var view virtual while'.split(' '));
+function toPascalCase(value){
+ const parts=String(value||'').normalize('NFKD').replace(/[^a-zA-Z0-9 _-]/g,' ').split(/[ _-]+/).filter(Boolean);
+ let name=parts.map(x=>x[0].toUpperCase()+x.slice(1)).join('').slice(0,64);
+ if(!name || /^[0-9]/.test(name) || RESERVED.has(name.toLowerCase()))name='Mintbay'+name;
+ return name;
 }
 const jsonFragment=x=>JSON.stringify(x).slice(1,-1);
 const switchFn=(items, name, type, fallback='0')=>`    function ${name}(uint256 i) internal pure returns (${type}) {\n${items.map((s,i)=>`        if(i==${i}) return ${s};`).join('\n')}\n        return ${fallback};\n    }\n`;
@@ -114,17 +124,33 @@ function makeData(s,id) {
 }
 function makeRenderer(s,id){const {grid,c}=s;const nm=id+'Renderer',dt=id+'Data';return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport {Base64} from "solady/src/utils/Base64.sol";\nimport {LibString} from "solady/src/utils/LibString.sol";\nimport {${dt}} from "./${dt}.sol";\nlibrary ${nm} {\n    using LibString for uint256;\n    function svg(bytes32 seed) internal pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        uint8[${grid*grid}] memory pixels_;\n        for(uint256 l=0;l<${c.layers.length};l++){bytes memory p=${dt}.pixels(chosen[l]);for(uint256 i=0;i<${grid*grid};i++)if(uint8(p[i])!=0)pixels_[i]=uint8(p[i]);}\n        string memory rects="";\n        for(uint256 i=0;i<${grid*grid};i++)if(pixels_[i]!=0){rects=string.concat(rects,'<rect x="',(i%${grid}).toString(),'" y="',(i/${grid}).toString(),'" width="1" height="1" fill="',${dt}.paletteColor(pixels_[i]),'"/>');}\n        return string.concat('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">',rects,'</svg>');\n    }\n    function attributes(bytes32 seed) internal pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        string memory a="";\n        for(uint256 l=0;l<${c.layers.length};l++){a=string.concat(a,l==0?"":",",'{"trait_type":"',${dt}.layerName(l),'","value":"',${dt}.traitName(chosen[l]),'"}');}\n        return string.concat('[',a,']');\n    }\n    function tokenURI(uint256 id,bytes32 seed) internal pure returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed),'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
 function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;const header=typeof co.sourceHeaderArt==='string'?co.sourceHeaderArt.replace(/\r\n?/g,'\n').split('\n').map(x=>'// '+x).join('\n')+'\n':'';
- const initial=co.deployerAddress||'0x0000000000000000000000000000000000000000';
- const lines=sources.map(x=>`        approvedClaimCollections[${checksumAddress(x.contract)}]=ApprovedClaim(true,${money(x.mintPriceEth)});`).join('\n');
- return `// SPDX-License-Identifier: MIT\n${header}pragma solidity ^0.8.24;\nimport {MintbayNetIntegratedERC721A} from "./contracts/MintbayNetIntegratedERC721A.sol";\nimport {${id}Renderer} from "./${id}Renderer.sol";\ncontract ${id} is MintbayNetIntegratedERC721A {\n    constructor() MintbayNetIntegratedERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n${lines}\n    }\n    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return ${id}Renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
+ const claimLines=sources.map(x=>`        approvedClaimCollections[${checksumAddress(x.contract)}]=ApprovedClaim(true,${money(x.mintPriceEth)});`);
+ const burnLines=s.burnSources.map(x=>`        approvedBurnClaimCollections[${checksumAddress(typeof x==='string'?x:x.contract)}]=true;`);
+ const lines=[...claimLines,...burnLines].join('\n');
+ const uniqueness=`    mapping(bytes32 => bool) private _usedTraitCombinations;
+    function _selectMintSeed(uint256, bytes32 candidate) internal override returns (bytes32) {
+        bytes32 choice = candidate;
+        for (uint256 attempt = 0; attempt < 10; attempt++) {
+            bytes32 fingerprint = keccak256(abi.encode(${id}Data.choose(choice)));
+            if (!_usedTraitCombinations[fingerprint]) {
+                _usedTraitCombinations[fingerprint] = true;
+                return choice;
+            }
+            if (attempt < 9) choice = keccak256(abi.encode(choice, attempt));
+        }
+        // Best effort: a duplicate after ten collisions is permitted by design.
+        return choice;
+    }
+`;
+ return `// SPDX-License-Identifier: MIT\n${header}pragma solidity ^0.8.24;\nimport {MintbayNetIntegratedERC721A} from "./contracts/MintbayNetIntegratedERC721A.sol";\nimport {${id}Renderer} from "./${id}Renderer.sol";\nimport {${id}Data} from "./${id}Data.sol";\ncontract ${id} is MintbayNetIntegratedERC721A {\n    constructor() MintbayNetIntegratedERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n${lines}\n    }\n${uniqueness}    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return ${id}Renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
 }
 function configAddress(s){return s.expectedDeployer;}
 async function main(){const all=await load();const s=check(all);s.expectedDeployer=all.config.deployment.expectedDeployer;
- const build=all.manifest.id;const id='Mintbay_'+build.replaceAll('-','_');ok(nameSafe(id),'Bad identifier');
+ const build=all.manifest.id;const id=toPascalCase(s.co.name);ok(nameSafe(id),'Bad identifier');
  const outputs={ [`${id}Data.sol`]:makeData(s,id),[`${id}Renderer.sol`]:makeRenderer(s,id),[`${id}.sol`]:makeCollection(s,id)};
  await mkdir(join(dest,'contracts'),{recursive:true});const base=join(repo,'assets/contracts/v5/MintbayNetIntegratedERC721A.sol');await copyFile(base,join(dest,'contracts/MintbayNetIntegratedERC721A.sol'));
  const hashes={};for(const [f,content] of Object.entries(outputs)){await writeFile(join(dest,f),content);hashes[f]=sha(content);}hashes['contracts/MintbayNetIntegratedERC721A.sol']=sha(await readFile(base));
- const record={buildId:build,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,referenceBaseApproved:false,releaseAttested:false,note:'Source generation only. Not compiled, simulated, certified, or approved for mainnet.'};
+ const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,note:'V5.1 source generation only; actual compilation, runtime sizing and execution must be checked before deployment.'};
  await writeFile(join(dest,'generation.json'),JSON.stringify(record,null,2)+'\n');
  console.log(JSON.stringify({status:'GENERATED_UNVERIFIED',directory:dest,...record},null,2));
 }

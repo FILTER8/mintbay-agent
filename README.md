@@ -1,12 +1,18 @@
-# Mintbay Agent — Bankr deploy_contract workflow
+# Mintbay Agent — V5.1
 
-Deploy on-chain Mintbay Studio builds on Robinhood Chain (4663) using Bankr's native CREATE2 `deploy_contract` tool.
+One standard path: **Studio Build ID → deterministic Solidity generation → solc compilation → Bankr CREATE2 → Etherscan verification → optional Net launch feed**.
+
+## Prepare (no wallet needed)
 
 ```bash
 npm install --prefix assets/contracts/v5 --no-audit --no-fund
-node scripts/prepare-deploy.mjs YOUR_BUILD_ID --encode-only --out ./generated/YOUR_BUILD_ID
+node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID
 ```
 
-This generates exact Solidity sources, ABI, complete `StandardInput.json`, and a `transaction.json` containing unsigned **creation** bytecode (`to:null`). Provide the bytecode and verification files to Bankr `deploy_contract`; do not use `submit_raw_transaction` for creation. Confirm predicted address, cost and settings, obtain creator approval before broadcast; wait for receipt and confirm deployed code and explorer verification.
+Bankr's `deploy_contract` submits the exact initcode. The creator approves before broadcast. See `SKILL.md`.
 
-See `SKILL.md` and `references/DEPLOYMENT.md`. The candidate V5 base and generator are included in this repository. Do not claim an audit or successful EVM behavior testing merely from compilation.
+V5.1 includes automatic 5% platform fee push, best-effort ten-attempt trait combination de-duplication, readable Solidity filenames and Burn & Claim source configuration. Existing live contracts such as THE TESTERS are **unchanged**.
+
+Run generator checks: `node scripts/test-generator.mjs`.
+
+**Important:** On-chain contract-size, gas and full EVM feature tests must be checked with a real compilation/test environment before treating a new collection as production ready.

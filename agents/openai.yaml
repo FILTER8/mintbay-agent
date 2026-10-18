@@ -1,4 +1,4 @@
 interface:
   display_name: "Mintbay Agent"
-  short_description: "Deploy Mintbay NFT collections using Bankr"
-  default_prompt: "Deploy my Mintbay NFT collection from a Studio Build ID on Robinhood Chain using Bankr."
+  short_description: "Generate and deploy fully on-chain Mintbay NFTs with Bankr"
+  default_prompt: "Deploy my Mintbay Studio collection on Robinhood Chain from its Build ID using Bankr."

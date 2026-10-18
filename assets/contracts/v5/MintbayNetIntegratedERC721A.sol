@@ -54,7 +54,7 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
 
     // --- Events ---
     event SupplyReduced(uint256 newMaxSupply);
-    event PlatformFeesWithdrawn(address indexed to, uint256 amount);
+    event PlatformFeesPaid(address indexed to, uint256 amount);
     event CreatorProceedsWithdrawn(address indexed to, uint256 amount);
     event PayoutRecipientUpdated(address indexed newRecipient);
     event ApprovedClaimCollectionSet(address indexed collection, bool approved, uint256 priceEth);
@@ -86,7 +86,6 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
     uint256 public creatorMinted;
 
     // --- Exact Accounting State ---
-    uint256 public accruedPlatformFees;
     uint256 public accruedCreatorProceeds;
 
     // --- Per-Token Seed Storage ---
@@ -236,18 +235,13 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
         if (payment > 0) {
             uint256 fee = (payment * PLATFORM_FEE_BPS) / 10000;
             uint256 proceeds = payment - fee;
-            accruedPlatformFees += fee;
             accruedCreatorProceeds += proceeds;
+            if (fee != 0) {
+                (bool paid, ) = PLATFORM_FEE_RECIPIENT.call{value: fee}("");
+                if (!paid) revert TransferFailed();
+                emit PlatformFeesPaid(PLATFORM_FEE_RECIPIENT, fee);
+            }
         }
-    }
-
-    function withdrawPlatformFees() external nonReentrant {
-        uint256 amount = accruedPlatformFees;
-        if (amount == 0) revert NoAccruedFunds();
-        accruedPlatformFees = 0;
-        (bool success, ) = PLATFORM_FEE_RECIPIENT.call{value: amount}("");
-        if (!success) revert TransferFailed();
-        emit PlatformFeesWithdrawn(PLATFORM_FEE_RECIPIENT, amount);
     }
 
     function withdrawCreatorProceeds() external nonReentrant {
@@ -259,13 +253,18 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
         emit CreatorProceedsWithdrawn(payoutRecipient, amount);
     }
 
+    // --- Optional per-collection seed selection (V5.1) ---
+    function _selectMintSeed(uint256, bytes32 candidate) internal virtual returns (bytes32) {
+        return candidate;
+    }
+
     // --- Internal Minting & Seeding ---
     function _mintSeeded(address to, uint256 quantity) internal returns (uint256 startTokenId) {
         if (_totalMinted() + quantity > maxSupply) revert MaxSupplyExceeded();
 
         startTokenId = _nextTokenId();
         for (uint256 i = 0; i < quantity; i++) {
-            _tokenToSeed[startTokenId + i] = keccak256(
+            _tokenToSeed[startTokenId + i] = _selectMintSeed(startTokenId + i, keccak256(
                 abi.encodePacked(
                     block.timestamp,
                     block.prevrandao,
@@ -273,7 +272,7 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
                     startTokenId + i,
                     address(this)
                 )
-            );
+            ));
         }
         _mint(to, quantity);
     }

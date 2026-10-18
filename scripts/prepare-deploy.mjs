@@ -30,7 +30,7 @@ async function run(){
  if(generator.status!==0)throw Error('Source generator failed:\n'+generator.stderr+'\n'+generator.stdout);
  const record=JSON.parse(await readFile(join(generated,'generation.json'),'utf8'));
  assert(record.chainId===4663,'Only Robinhood Chain (4663) is supported in this command');
- const main=`Mintbay_${record.buildId.replaceAll('-','_')}`;
+ const main=record.contractName || `Mintbay_${record.buildId.replaceAll('-', '_')}`;
  const projectFiles=[`${main}.sol`,`${main}Data.sol`,`${main}Renderer.sol`,'contracts/MintbayNetIntegratedERC721A.sol'];
  const sources={};
  const normalize=s=>posix.normalize(s);
@@ -65,7 +65,7 @@ async function run(){
  await writeFile(join(output,'abi.json'),JSON.stringify(artifact.abi,null,2)+'\n');
  const tx={chainId:4663,to:null,data:'0x'+bytecode,value:'0'};
  await writeFile(join(output,'transaction.json'),JSON.stringify(tx,null,2)+'\n');
- const summary={buildId:record.buildId,chainId:4663,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr should use its native deploy_contract flow for CREATE2 contract creation, using the exact generated initcode and preserving StandardInput.json for verification.'};
+ const summary={buildId:record.buildId,chainId:4663,contractName:main,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr should use its native deploy_contract flow for CREATE2 contract creation, using the exact generated initcode and preserving StandardInput.json for verification.'};
  await writeFile(join(output,'prepare-result.json'),JSON.stringify(summary,null,2)+'\n');
  console.log(JSON.stringify({...summary,transaction:tx},null,2));
 }

@@ -1,49 +1,47 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain generative Mintbay NFT collections from immutable Mintbay Studio Build IDs through Bankr deploy_contract on Robinhood Chain. Generate and compile the exact Solidity source, submit the creation bytecode through Bankr CREATE2, and report deployment and verification. Also share Mintbay NFTs and galleries.
+description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs on Robinhood Chain with Bankr CREATE2; prepare exact Solidity source and bytecode, verify deployment, and share token/gallery links.
 ---
 
-# Mintbay: Build ID -> Bankr deploy_contract -> NFT
+# Mintbay: Build ID -> Bankr -> verified NFT
 
-Use this skill when asked to deploy a Mintbay Studio collection. The Build ID is the specification. Do not hand-code a collection or reuse sample artwork.
+Use this skill for Mintbay Studio NFT deployments. **Never copy example contract art or reimplement the collection by hand.** The immutable Build ID defines it.
 
-## 1. Prepare the deployable bytecode
-
-From the repository root:
+## Prepare
 
 ```bash
 npm install --prefix assets/contracts/v5 --no-audit --no-fund
 node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID
 ```
 
-The command validates immutable build hashes and artwork lineage, generates the collection-specific Solidity, compiles with pinned solc 0.8.24 (viaIR, optimizer runs 200, Cancun), and checks runtime and initcode size. Outputs: `transaction.json` (creation bytecode in `data`, `to:null`), `StandardInput.json`, `abi.json`, `prepare-result.json`, `sources/`. Treat these outputs as the exact deployment artifacts; do not substitute example contract source or alter code without the creator's approval.
+Read `prepare-result.json`; confirm hashes, correct configuration, runtime size and compiler warnings. The generated Solidity contract name is derived from the collection name (e.g. `TheTesters.sol`). The full `StandardInput.json`, bytecode and ABI must be preserved. **The compiler output is not an audit.** If a new collection exceeds EIP-170/EIP-3860, stop and report its actual size; do not silently disable features.
 
-## 2. Deploy using Bankr's native contract tool
+## Deploy using Bankr
 
-**Use Bankr `deploy_contract`, not `submit_raw_transaction`.** Bankr's raw submit interface requires a recipient address and rejects `to:null`. Its native `deploy_contract` route supports CREATE2 deployment through `0x4e59b44847b379578588920cA78FbF26c0B4956C` on Robinhood Chain (4663). Supply the **exact generated creation bytecode** from `transaction.json` and the matching Solidity/Standard JSON verification material as supported by the installed Bankr tool. Do not send the creation bytecode as an ordinary call to the proxy address unless Bankr's own deployment interface explicitly specifies that encoding.
+Use Bankr's native `deploy_contract` CREATE2 workflow on Robinhood (chain 4663), not `submit_raw_transaction` (`to:null` is not supported there). Supply the exact generated creation bytecode and verification material. Verify the initial owner from the build and show the predicted address, parameters and estimated cost. Ask for explicit creator approval **before** broadcasting. Never handle a wallet private key.
 
-Confirm the deployed owner is the Studio `expectedDeployer` / initial owner set in generated Solidity; CREATE2 proxy's caller is not necessarily the owner. Check any deployment tool schema and review the tool's predicted address and cost. Tell the creator the exact chain, wallet, fees, mint price, supply, claim sources, contract size and any relevant warnings. **Ask for explicit approval before the irreversible broadcast.** No private keys in chat or repo.
+After the successful receipt, read the actual CREATE2 address and deployed code; verify on Robinhood Etherscan with saved `StandardInput.json`. The factory receipt may show `contractAddress:null`; obtain the collection address from the Bankr deployment result/factory logs and confirm bytecode. Do not claim verified without explorer confirmation.
 
-Do **not** add a separate draft-status or release-attestation prerequisite. `status:draft` or `template.verified:false` alone should not prevent a creator-approved first deployment. Still stop on failed hashes, compile failures, unsupported collection features, oversize bytecode, incorrect fee address, or mismatched parameters. An approved transaction is not an audit.
+## Net launch message after deployment
 
-## 3. Confirm and verify
+After a successful deployment (not during construction), use the **Net Protocol skill** to announce the collection once to `feed-<deployedCollectionAddress>` on chain 4663. Include the collection name and verified contract URL. Get the Net transaction hash and report it. **Do not duplicate an existing announcement on retry.** Failed feed posting must not invalidate a completed NFT deployment; report it separately. Net directory indexing may lag.
 
-After Bankr deployment, require a successful transaction receipt, obtain the *actual deployed contract address* from the Bankr `deploy_contract` response / CREATE2 factory event or computed address, and verify deployed bytecode exists at that address. **A CREATE2 factory call receipt commonly has `contractAddress:null`; do not mistake it for failure.** Cross-check the resulting address with the tool's prediction, read on-chain owner, maxSupply, price, mint fee and other material settings where possible, and give the real tx hash and explorer link.
+## V5.1 protocol rules
 
-Use the saved `StandardInput.json`, compiler version and settings for Bankr's built-in explorer verification if available. Confirm verification status before claiming 'verified'; otherwise report 'verification pending' with the actual deployment address. Mintbay backend registration is a separate optional authenticated step, never a condition for deploying and never a secret stored in this skill.
+- Paid public mint and paid Holder Claim push exactly **5%** to `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717` in the same transaction. Creator's remaining 95% accrues for permissionless `withdrawCreatorProceeds()` paid to the configured payout recipient. Failed platform transfer reverts the mint.
+- Lifetime minted supply is shared between public mint, creator mint, Holder Claim, Burn & Claim and One Shot. Burns never free mint slots.
+- Best-effort duplicate prevention: **up to 10 candidate seeds per minted NFT**. Try for an unused *trait combination*. If all collide, allow the tenth even if previously used. Preserve remembered combinations across burns. This is *not* guaranteed visual uniqueness or perfect trait distribution.
+- Burn & Claim is free, atomic and 1:1. The source NFT owner must approve the destination contract for the source token (`approve(destination, tokenId)` preferred over blanket approval). The source needs an ERC721-compatible `burn(uint256)` that honors operator approvals; not all ERC721 collections qualify. Configure allowed burn source contracts from the build. Do not disable it silently.
+- Owner is `deployment.expectedDeployer` from the immutable Studio build (the name is historical; it is the intended `initialOwner`, not necessarily the Bankr/CREATE2 caller). Confirm it before deployment. Future Studio support for a separate explicit owner field requires a coordinated schema update.
+- Keep existing Limit Break royalties and Net mint/transfer/burn hooks; display ERC2981 royalty settings accurately and do not infer forced royalties from ERC2981 alone.
+- HoodWallet administrator mode remains unsupported by this base; stop for that specific case. Do not block merely for legacy draft/attestation fields if the creator approves the exact transaction.
 
-## V5 invariants
+See [DEPLOYMENT.md](references/DEPLOYMENT.md) for the handoff and [GENERATION-V5.md](references/GENERATION-V5.md) for generation. No registration secret is stored in this skill.
 
-- Protocol fee fixed to **5%** of paid primary mints, receiver `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717`. Do not change either value.
-- One shared lifetime max supply. Burns do not free slots; public wallet limit 0 means unlimited.
-- Studio build defines mint price, supply, features, royalty receiver and amounts, owner, payment recipient and holder claim sources. Best-effort Net hooks. ERC2981 royalty information is **not** proof of forced royalty enforcement.
-- Generator intentionally rejects unsupported HoodWallet-admin and Burn & Claim configurations; disclose a genuine incompatibility rather than silently omit it.
-- The existing reference is candidate software. Compilation does not prove economic correctness, EVM test coverage, or security. Never invent test, verification or deployment success.
-
-## NFT and gallery sharing
+## Share
 
 Token: `https://mintbay.xyz/token/{chainId}/{contractAddress}/{tokenId}`
 
 Gallery: `https://mintbay.xyz/gallery/share?chain={chainId}&collection={contractAddress}&ids={comma-separated-ids}&grid={gridWidth}&gap=20&margin=68&scale=100&bg=white&labels=0`
 
-See [DEPLOYMENT.md](references/DEPLOYMENT.md) for detailed handoff and [URLS.md](references/URLS.md) for sharing. `node scripts/test-generator.mjs` checks source generation only, not EVM behavior.
+See [URLS.md](references/URLS.md). `node scripts/test-generator.mjs` only checks generation, not EVM execution.

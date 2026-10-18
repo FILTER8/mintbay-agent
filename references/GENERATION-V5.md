@@ -1,9 +1,11 @@
-# Mintbay V5 generic generation
+# V5.1 collection generation
 
-The normal single command is `node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID`. It internally runs `scripts/generate-collection.mjs` and compiles the result.
+Run `node scripts/generate-collection.mjs BUILD_ID --out DIR`, or `node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out DIR` for full compilation.
 
-The generator consumes immutable config, artwork and compiled-artwork raw bytes from `api.mintbay.fun`; validates SHA-256 values, compiler lineage, pixel indices, trait weights, exclusions and layer counts; emits Solidity for dynamic grid sizes, palettes and multiword exclusion masks. Source contracts are unique to the Build ID, not hard-coded to THE TESTERS.
+The Build ID is immutable and its config, raw art and compiled-artwork bytes are SHA-256 verified. The generator emits PascalCase collection filenames derived from the Studio collection name, the reusable V5.1 base and a `generation.json` with `contractName` and hashes. This is a source-generation tool, not a blockchain deployment command.
 
-To diagnose generator output without compilation: `node scripts/generate-collection.mjs BUILD_ID --out ./generated/sources`.
+V5.1 differences: immediate 5% platform fee push; a bounded 10-seed *best effort* de-duplication check on trait IDs (last collision allowed, burned combinations remembered); configurable Burn & Claim source allowlist. Native ERC721 burn approvals are required. For a first V5.1 Burn & Claim test, a collection may list THE TESTERS `0x4e68e1F912d5D9c3fb6795B2af87FfaC87882575` as an allowed source.
 
-Limits: only standard EOA administration; Burn & Claim-enabled builds are unsupported; royalty enforcement is not automatically activated. The EIP-170 maximum deployed runtime size is 24576 bytes and the EIP-3860 maximum creation initcode size is 49152 bytes. Build manifests may retain `status:draft` and `template.verified:false`; those values do not assert audited or certified status and do not affect the raw hash checks. Never substitute unverifiable or altered artwork.
+The generator reads `mintbayV5.burnAndClaim.sourceCollections` as a list of address strings or `{contract:address}` when Burn & Claim is enabled. Studio must export this field; if a build requests Burn & Claim without approved sources, generation fails explicitly instead of silently changing the collection.
+
+Runtime-size limits are real: external art and uniqueness logic may exceed EIP-170 for large collections. Always compile and check. `test-generator.mjs` is not a local EVM acceptance suite.
