@@ -15,7 +15,7 @@ assertEncodeOnly();
 function assertEncodeOnly(){ assert(!args.includes('--broadcast'), 'Broadcasting is not available: use Bankr to sign and submit'); }
 const build=args[0], output=resolve(flag('--out')||join(process.cwd(),'generated',build||'unknown'));
 const sha=b=>createHash('sha256').update(b).digest('hex');
-const assert=(v,msg)=>{if(!v)throw Error(msg);};
+function assert(v, msg) { if (!v) throw Error(msg); }
 const reference=join(repo,'assets/contracts/v5');
 const requireFromDeps=createRequire(join(reference,'package.json'));
 
@@ -65,7 +65,7 @@ async function run(){
  await writeFile(join(output,'abi.json'),JSON.stringify(artifact.abi,null,2)+'\n');
  const tx={chainId:4663,to:null,data:'0x'+bytecode,value:'0'};
  await writeFile(join(output,'transaction.json'),JSON.stringify(tx,null,2)+'\n');
- const summary={buildId:record.buildId,chainId:4663,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr must support to=null contract creation.'};
+ const summary={buildId:record.buildId,chainId:4663,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr should use its native deploy_contract flow for CREATE2 contract creation, using the exact generated initcode and preserving StandardInput.json for verification.'};
  await writeFile(join(output,'prepare-result.json'),JSON.stringify(summary,null,2)+'\n');
  console.log(JSON.stringify({...summary,transaction:tx},null,2));
 }
