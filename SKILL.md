@@ -1,6 +1,6 @@
 ---
 name: mintbay-agent
-description: Use Mintbay to share fully on-chain NFTs and galleries, inspect Mintbay V5 Studio builds with original and compiled artwork, and guide a Bankr agent through read-only Net-integrated ERC721A generation, compilation and testing. Use for Mintbay collection builds, Bankr integration, deployment planning and gallery links.
+description: Use Mintbay to share fully on-chain NFTs and galleries, inspect Mintbay V5 Studio builds with original and compiled artwork, and guide Bankr agents through reproducible Mintbay V5 NFT generation, verification and approved deployment using immutable Studio builds. Use for Mintbay builds, deployment commands, contract generation, Net integration and gallery links.
 ---
 
 # Mintbay Agent
@@ -58,14 +58,20 @@ For verified social previews, use 1–16 positive integer token IDs and a grid w
 - Mintbay V5 is designed to integrate [Net Protocol](https://www.netprotocol.app/) best-effort on-chain messaging; read [NET-INTEGRATION.md](references/NET-INTEGRATION.md) before changing its hooks.
 - Optional Studio creator-message/Unicode source comment can be present in published config, but Solidity insertion is **NOT AUTOMATED**. See [ASCII-HEADER.md](references/ASCII-HEADER.md). Do not invent a field in existing builds; render creator Unicode text only as harmless, individually prefixed `//` comment lines; never change contracts' behavior or fee economics.
 
-## Mintbay V5 Studio builds and Bankr (development / read-only)
+## Mintbay V5 Studio builds, candidate reference and Bankr deployment
 
 - **Do not use the retired `mintbay-net-collection-template` GitHub repository as a required input.** Use the immutable Mintbay Studio build URL as the source of collection-specific artwork and configuration.
 - For any `/v1/builds/{id}` URL, read [BUILDS.md](references/BUILDS.md) and download the *actual* manifest, `/config`, `/artwork`, and `/compiled-artwork` when declared. For new V5 compiled-artwork builds, require all three files and verify raw response-byte SHA-256 hashes and compiler source lineage; fail closed on any missing/mismatching data. A build with `status: draft` and `template.verified: false` is **not deployable by default**.
 - To generate source, follow [NET-INTEGRATION.md](references/NET-INTEGRATION.md), then [DEPLOYMENT.md](references/DEPLOYMENT.md). Preserve the pinned Net integration. Generate Solidity constants only from *verified* `compiled-artwork.json` with original artwork/config as independent verification; never guess, reindex, deduplicate, rename, recolor, reweight, or reconstruct traits. Do not silently change supply, fee recipient, royalties, chain, ownership, mint privileges, artwork or trait selection. Check every optional feature or report unsupported.
-- Until tested V5 sources and compatible ABI are published, work **STRICTLY READ-ONLY**: generate, compile, test, estimate, review and debug without submitting, signing, deploying, minting or spending funds. If user separately approves later deployment, check that the required reviewed bundle, verification and Bankr workflow actually exist first.
+- Until the candidate base has passed the required tests and a signed/canonical build release is available, work **STRICTLY READ-ONLY**: generate, compile, test, estimate, review and debug without submitting, signing, deploying, minting or spending funds. If user separately approves later deployment, check that the required reviewed bundle, verification and Bankr workflow actually exist first.
 - After an explicitly approved and confirmed future deployment, registration with Mintbay is an internal backend action described in [DEPLOYMENT.md]; **never** expose registration credentials in a browser, public prompt, skill or social message. Discovery requires the first minted NFT.
 - For a concrete safe prompt use [deploy-v5.md](examples/deploy-v5.md). Existing token/gallery sharing instructions above remain valid.
 - No stable public wallet-ownership API has been documented in this skill. Never invent holdings. See [ROADMAP.md](references/ROADMAP.md).
 
 For URL rules, chains and test cases see [URLS.md](references/URLS.md).
+
+## V5 reference sources (candidate, not production approved)
+
+- Concrete base: [`assets/contracts/v5/MintbayNetIntegratedERC721A.sol`](assets/contracts/v5/MintbayNetIntegratedERC721A.sol), SHA-256 `5b15c19e3ba10dcf015ebdd822debd42cb3bdc40cb1c83168aae79848ba2a23b`; **provenance hash only, not an approved/audited pin**. Do not change it silently.
+- THE TESTERS **example only**: [`assets/contracts/v5/examples/`](assets/contracts/v5/examples/). This is not a fixed template for all builds.
+- For generic generation and the normal one-command Bankr prompt, load [GENERATION-V5.md](references/GENERATION-V5.md). Do not treat reference availability as satisfied deployment gates.

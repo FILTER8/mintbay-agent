@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "mintbay-v5-reference",
+  "version": "0.1.0",
+  "description": "Candidate sources reproduced from Bankr pasted transcript; not audited or approved",
+  "dependencies": {
+    "@limitbreak/creator-token-standards": "2.0.1",
+    "@openzeppelin/contracts": "4.9.6",
+    "erc721a": "4.3.0",
+    "solady": "0.0.245",
+    "solc": "0.8.24"
+  }
+}
