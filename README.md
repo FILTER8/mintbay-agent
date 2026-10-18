@@ -72,3 +72,11 @@ Run `node scripts/validate-build.mjs https://api.mintbay.fun/v1/builds/ebd5e0d8-
 - Optional source-code ASCII-art header is planned, not currently supported by Studio/Worker; see `references/ASCII-HEADER.md`.
 
 Legacy NFT token and gallery share URLs remain on `mintbay.xyz` until new share pages exist.
+
+### V5 Solidity reference
+
+Candidate sources from THE TESTERS and a generic generation/deployment specification are bundled at `assets/contracts/v5/` and `references/GENERATION-V5.md`. They are **not** certified production code; all deployment gates remain active until actual verification and tests.
+
+## V5 deterministic source generation (candidate)
+
+`node scripts/generate-collection.mjs BUILD_UUID --out ./generated/BUILD_UUID` fetches and verifies the immutable artifacts, checks trait/pixel/mask parity, and generates collection-specific Solidity. See `references/GENERATION-V5.md` for supported features and pending production release gates. **No deployment is performed.**

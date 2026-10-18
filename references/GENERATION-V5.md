@@ -1,22 +1,30 @@
-# Mintbay V5 collection generation and ordinary deployment
+# V5 source generation: normal workflow
 
-## Requested user entry point
+For a Mintbay Build ID, use the repository script instead of inventing collection-specific Solidity.
 
-`@bankrbot deploy my Mintbay NFT collection on Robinhood Chain. Build ID: YOUR_BUILD_ID. Use the official Mintbay skill. Show deployment transaction and verified contracts.`
+```bash
+node scripts/generate-collection.mjs BUILD_UUID --out ./generated/BUILD_UUID
+# or for already-downloaded, exact raw JSON bytes:
+node scripts/generate-collection.mjs --local --dir ./fixture --out ./generated/fixture
+```
 
-This is the **normal** deployment path, not an experimental exception. The repository currently contains **candidate** base Solidity and a fully materialized THE TESTERS example; it does **not** yet contain an approved deterministic generator or passing EVM tests. Do not misrepresent it as a ready-to-run one-command deployer.
+The generator verifies raw-byte SHA-256 hashes of config, artwork, compiled artwork, verifies lineage, trait IDs, weights, every pixel, symmetric multi-word exclusions, grid and layer offsets, fee configuration, and emits collection-specific `Data.sol`, `Renderer.sol`, `Collection.sol`, the copied candidate base and `generation.json` recording provenance. Names are derived from the Build ID, not from THE TESTERS. Sources are deterministic for identical artifacts and script version. The implementation supports up to the current compiled-artwork palette and layer schema, dynamic grid sizes, and masks spanning multiple 256-bit words. Compilation size limits may still reject large builds.
 
-## Generating from ANY build (never hard-code the example)
+## Important limits / fail closed
 
-1. Fetch manifest and all three immutable artifact URLs. Check raw-byte SHA-256, compiledArtwork lineage, actual `chainId`, collection config and original trait order. Refuse mismatch.
-2. Start with `assets/contracts/v5/MintbayNetIntegratedERC721A.sol` after acceptance/review. Do not duplicate or hand-wave base behavior. Inspect source for feature parity and known issues in `assets/contracts/v5/README.md`.
-3. Generate a **new collection-specific** Data.sol using compiled-artwork `layers`, `traits`, ordered weights, palette, pixels and all exclusion mask words. Validate numeric limits and bitwise semantics. Do not truncate masks over 256 bits; the current example's single-word mask approach works only for its 26 traits.
-4. Generate Renderer.sol from verified data: actual grid dimensions, pixels, palette, trait types/names, escaped metadata, on-chain SVG + base64 JSON. Do not embed example collection name or 12x12 assumptions.
-5. Generate Collection.sol with accurate constructor arguments and feature booleans from config, deployer mode/owner/payout/royalties, all configured Holder Claim source contracts and their individual prices, and optional Unicode header as one `//` comment per line. The platform fee address and 500 bps must stay immutable in base.
-6. Generate exact complete Standard JSON input including **all imported dependency contents**, pin solc/optimizer/viaIR and compile the actual sources. Record all SHA-256 hashes, bytecode size, constructor args and deployment simulation/tests.
-7. Resolve mismatches: the candidate base calls `creatorMint(address,uint256)`; do not claim `mintToCreator` exists. Verify and use actual ABI. Preserve all relevant Net hooks and keep features correctly gated.
-8. Only when the canonical base is approved, EVM tests pass, and an authoritative release/certification mechanism attests the build to that template, request explicit user approval for deployment on the manifest chain. Broadcast through the authorized Bankr account, wait for receipt, verify exact Standard JSON contract source on explorer, then return tx + verified contract links. Report failure transparently.
+- Candidate V5 base supports **standard EOA mode only**. The generator rejects HoodWallet mode rather than pretending it is supported.
+- **Burn & Claim enabled** is refused until destination-side source burning can be safely implemented and tested. Other features reflect the config, but live EVM tests are still required.
+- Ownership transfer enabled means an owner can also renounce ownership in the candidate base. Review the base before approval.
+- Existing Net calls are unbounded. Review for gas griefing and make any necessary fixes *before* approving the base.
+- ERC721-C `enforcementRequested` is not the same as configured validator enforcement; no auto-activation of validation.
+- The generator produces **candidate Solidity source**, not bytecode, a compiler Standard JSON input, deployment receipts, or explorer verification.
+- `status: draft` and `template.verified: false` remain unchanged. Never claim a release is certified without a separate server-side, authenticated attestation linked to immutable build hashes and an approved base SHA.
 
-## Release-state truth
+## Future work required for normal production one-command deployment
 
-Current Mintbay API manifests use `status: draft` and `template.verified: false`. No server-side certification endpoint was provided. An immutable build cannot be certified by editing its R2 bytes in place; use a separate, authenticated, verifiable release attestation linked to immutable build ID/artifact hashes and approved template SHA. Until that exists, remain read-only. Never self-assert `template.verified: true`, bypass the gate on user enthusiasm, or deploy a copied example for another collection.
+1. Reproduce compilation using pinned dependencies and exact Standard JSON, and run real EVM invariant tests. Record reviewed canonical V5 base hash and generator version.
+2. Implement authenticated release attestation (do not mutate R2 build contents).
+3. Implement approved wallet transaction broadcast, authenticated explorer source verification and secure backend registration. Protect all secrets outside the public skill repository.
+4. On confirmation return deployed address, transaction hash, verified source links and separate status for registration and verification. No false success claims.
+
+Do not allow generator success to override the existing mainnet stop gates.

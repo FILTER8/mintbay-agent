@@ -75,3 +75,8 @@ For URL rules, chains and test cases see [URLS.md](references/URLS.md).
 - Concrete base: [`assets/contracts/v5/MintbayNetIntegratedERC721A.sol`](assets/contracts/v5/MintbayNetIntegratedERC721A.sol), SHA-256 `5b15c19e3ba10dcf015ebdd822debd42cb3bdc40cb1c83168aae79848ba2a23b`; **provenance hash only, not an approved/audited pin**. Do not change it silently.
 - THE TESTERS **example only**: [`assets/contracts/v5/examples/`](assets/contracts/v5/examples/). This is not a fixed template for all builds.
 - For generic generation and the normal one-command Bankr prompt, load [GENERATION-V5.md](references/GENERATION-V5.md). Do not treat reference availability as satisfied deployment gates.
+
+
+## Generic V5 source generator (read-only)
+
+Run `node scripts/generate-collection.mjs BUILD_UUID --out ./generated/BUILD_UUID` when a creator supplies any immutable V5 build. Read `references/GENERATION-V5.md`. The generator validates artifact hashes and compiled artwork parity, then emits dynamic grid/layer/palette/multiword-mask Solidity sources and a generation provenance record. This does **not** certify the template or grant permission to deploy: keep all production approval, EVM, and release-attestation gates. Do not copy THE TESTERS example as a new collection.
