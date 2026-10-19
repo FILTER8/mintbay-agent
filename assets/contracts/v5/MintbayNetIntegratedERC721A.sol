@@ -87,6 +87,12 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
     uint256 public creatorAllowance;
     uint256 public creatorMinted;
 
+    /// @notice Lifetime number of NFTs minted, including tokens later burned.
+    /// @dev Burning never restores available mint slots.
+    function totalMinted() external view returns (uint256) {
+        return _totalMinted();
+    }
+
     // --- Exact Accounting State ---
     uint256 public accruedCreatorProceeds;
 
