@@ -1,16 +1,21 @@
-# Example: individual NFT
+# Example: share an individual Mintbay.fun NFT
 
-**Prompt (known ID):**
+**Prompt:**
 
-> Show 8x8Portait #68 on Mintbay on Robinhood Chain. Return the entire NFT page URL so X can show the artwork.
+> Share THE TESTARS token #1 on X.
 
-**Expected response:**
+**Token page:**
 
-8x8Portait #68 on Mintbay:
-https://mintbay.xyz/token/4663/0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653/68
+https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1
 
-**Prompt (ownership-dependent):**
+**OG image provided by site:**
 
-> Find an 8x8Portait I own and share it on Mintbay.
+https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1/opengraph-image
 
-This second prompt **requires a trusted ownership lookup**, otherwise the agent must ask for the wallet/token ID or direct the user to https://mintbay.xyz/gallery. Never invent token ownership.
+**Possible X post (request final approval as appropriate):**
+
+THE TESTARS #1 — fully on-chain pixel art, minted with Mintbay.fun ✳
+
+https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1
+
+Use the token **page** in the post to let X scrape the existing `summary_large_image` card. This does not guarantee immediate image display. If user specifically wants actual uploaded image media, use the existing OG PNG through X media upload only if supported. Never invent ownership or imply success until the post is confirmed.

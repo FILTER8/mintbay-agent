@@ -1,6 +1,6 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs on Robinhood Chain with Bankr CREATE2; prepare exact Solidity source and bytecode, verify deployment, and share individual tokens, wallet galleries, and the latest Mintbay activity on X using verified public share links.
+description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs with Bankr CREATE2 and share Mintbay.fun individual token Open Graph cards or wallet galleries to X. Handle prompts to share a token by URL, contract and token ID; verify deployment and prepare collection source as required.
 ---
 
 # Mintbay: Build ID -> Bankr -> verified NFT
@@ -51,7 +51,21 @@ Example: "Post my Mintbay.fun profile card with my newest 16 NFTs. Wallet: 0x...
 
 The profile card shows **recently acquired tokens still held**, not necessarily the newest 16 original mints across all collections. A platform-wide latest-mints card is not implemented; do not invent a URL for one.
 
-Token: `https://mintbay.xyz/token/{chainId}/{contractAddress}/{tokenId}`
+## Share an individual Mintbay.fun NFT on X
+
+For a **single token**, use the live Mintbay.fun token page. The site already generates its own 1200x630 Open Graph card. Do not generate a second card or use the legacy mintbay.xyz token URL for Mintbay.fun collections.
+
+- Token page: `https://mintbay.fun/collections/{chainId}/{contractAddress}/{tokenId}`
+- Existing OG image: `https://mintbay.fun/collections/{chainId}/{contractAddress}/{tokenId}/opengraph-image`
+- Robinhood example, THE TESTARS #1: `https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1`
+
+When asked to share/post a token: determine chain ID, collection contract and token ID; validate them; open/check the public token page when possible; prepare concise post text with the **absolute token page URL** as plain text (not only the image endpoint or a Markdown hyperlink); seek approval before publishing if required. Use the connected X posting tool and confirm success before claiming the post is live. X may display the page's OG `summary_large_image` card, but crawling/cache behavior is outside our control; if guaranteed embedded media is requested, upload the existing `/opengraph-image` PNG as native post media **only when supported by the X tool**.
+
+Example user prompts: "Share THE TESTARS token #1 on X" or "Post Mintbay token https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1 to X".
+
+See [SHARING-V2.md](references/SHARING-V2.md) and [URLS.md](references/URLS.md) for details.
+
+Legacy Mintbay.xyz token page (older collections only): `https://mintbay.xyz/token/{chainId}/{contractAddress}/{tokenId}`
 
 Gallery: `https://mintbay.xyz/gallery/share?chain={chainId}&collection={contractAddress}&ids={comma-separated-ids}&grid={gridWidth}&gap=20&margin=68&scale=100&bg=white&labels=0`
 

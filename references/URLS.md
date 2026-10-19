@@ -2,7 +2,17 @@
 
 All URLs below are public pages or image endpoints. Use full absolute HTTPS URLs in agent replies.
 
-## Individual NFT
+## Individual Mintbay.fun NFT (current)
+
+Token page: `https://mintbay.fun/collections/{chainId}/{contractAddress}/{tokenId}`
+
+Token OG card: `https://mintbay.fun/collections/{chainId}/{contractAddress}/{tokenId}/opengraph-image`
+
+Example: `https://mintbay.fun/collections/4663/0x2b1943a3279021B336eE172D59D5048a4bD090C4/1`
+
+Post the token page as a plain text URL to X to make its OG card discoverable; X preview caching is not guaranteed.
+
+## Individual NFT (legacy Mintbay.xyz)
 
 Share page: `https://mintbay.xyz/token/{chainId}/{contractAddress}/{tokenId}`
 
