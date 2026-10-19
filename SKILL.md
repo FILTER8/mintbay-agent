@@ -14,17 +14,17 @@ npm install --prefix assets/contracts/v5 --no-audit --no-fund
 node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID
 ```
 
-Read `prepare-result.json`; confirm hashes, correct configuration, runtime size and compiler warnings. The generated Solidity contract name is derived from the collection name (e.g. `TheTesters.sol`). The full `StandardInput.json`, bytecode and ABI must be preserved. **The compiler output is not an audit.** If a new collection exceeds EIP-170/EIP-3860, stop and report its actual size; do not silently disable features.
+Read `prepare-result.json`; confirm `chainId`, `bankrChain`, `nativeCurrency` (POL on Polygon, ETH elsewhere), `netEnabled`, hashes, correct configuration, runtime size and compiler warnings. The generated Solidity contract name is derived from the collection name (e.g. `TheTesters.sol`). The full `StandardInput.json`, bytecode and ABI must be preserved. **The compiler output is not an audit.** If a new collection exceeds EIP-170/EIP-3860, stop and report its actual size; do not silently disable features.
 
 ## Deploy using Bankr
 
-Use Bankr's native `deploy_contract` CREATE2 workflow on Robinhood (chain 4663), not `submit_raw_transaction` (`to:null` is not supported there). Supply the exact generated creation bytecode and verification material. Verify the initial owner from the build and show the predicted address, parameters and estimated cost. Ask for explicit creator approval **before** broadcasting. Never handle a wallet private key.
+Use Bankr's native `deploy_contract` CREATE2 workflow on the **build's selected chain** (1 `mainnet`, 130 `unichain`, 137 `polygon`, 4663 `robinhood`, 8453 `base`, 42161 `arbitrum`), not `submit_raw_transaction` (`to:null` is not supported there). Supply the exact generated creation bytecode and verification material. Verify the initial owner from the build and show the predicted address, parameters and estimated cost. Ask for explicit creator approval **before** broadcasting. Never handle a wallet private key.
 
-After the successful receipt, read the actual CREATE2 address and deployed code; verify on Robinhood Etherscan with saved `StandardInput.json`. The factory receipt may show `contractAddress:null`; obtain the collection address from the Bankr deployment result/factory logs and confirm bytecode. Do not claim verified without explorer confirmation.
+After the successful receipt, read the actual CREATE2 address and deployed code; verify on the destination chain explorer with saved `StandardInput.json`. The factory receipt may show `contractAddress:null`; obtain the collection address from the Bankr deployment result/factory logs and confirm bytecode. Do not claim verified without explorer confirmation.
 
 ## Net launch message after deployment
 
-After a successful deployment (not during construction), use the **Net Protocol skill** to announce the collection once to `feed-<deployedCollectionAddress>` on chain 4663. Include the collection name and verified contract URL. Get the Net transaction hash and report it. **Do not duplicate an existing announcement on retry.** Failed feed posting must not invalidate a completed NFT deployment; report it separately. Net directory indexing may lag.
+After a successful deployment (not during construction), use the **Net Protocol skill** to announce the collection once to `feed-<deployedCollectionAddress>` on the build's chain **only when `netEnabled` is true** (Ethereum, Unichain, Robinhood or Base). Skip Net entirely on Polygon and Arbitrum. Include the collection name and verified contract URL. Get the Net transaction hash and report it. **Do not duplicate an existing announcement on retry.** Failed feed posting must not invalidate a completed NFT deployment; report it separately. Net directory indexing may lag.
 
 ## V5.1 protocol rules
 
@@ -36,7 +36,7 @@ After a successful deployment (not during construction), use the **Net Protocol 
 - Keep existing Limit Break royalties and Net mint/transfer/burn hooks; display ERC2981 royalty settings accurately and do not infer forced royalties from ERC2981 alone.
 - HoodWallet administrator mode remains unsupported by this base; stop for that specific case. Do not block merely for legacy draft/attestation fields if the creator approves the exact transaction.
 
-See [DEPLOYMENT.md](references/DEPLOYMENT.md) for the handoff and [GENERATION-V5.md](references/GENERATION-V5.md) for generation. No registration secret is stored in this skill.
+See [MULTICHAIN.md](references/MULTICHAIN.md) for the six network mappings and [DEPLOYMENT.md](references/DEPLOYMENT.md) for the handoff and [GENERATION-V5.md](references/GENERATION-V5.md) for generation. No registration secret is stored in this skill.
 
 ## Share the existing Mintbay.fun profile card on X
 

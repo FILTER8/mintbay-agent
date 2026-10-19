@@ -65,6 +65,8 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
 
     // --- Net Protocol Constants ---
     INet public constant NET = INet(0x00000000B24D62781dB359b07880a105cD0b64e6);
+    // Explicitly allow Net hooks only on chains with a confirmed Net deployment.
+    bool public immutable netEnabled;
     string internal constant TOPIC_MINT = "mint";
     string internal constant TOPIC_TRANSFER = "transfer";
     string internal constant TOPIC_BURN = "burn";
@@ -139,6 +141,7 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
         ERC721AC(name_, symbol_)
         BasicRoyalties(royaltyReceiver_, royaltyFeeNumerator_)
     {
+        netEnabled = block.chainid == 1 || block.chainid == 130 || block.chainid == 4663 || block.chainid == 8453;
         price = price_;
         maxSupply = maxSupply_;
         maxMintsPerWallet = maxMintsPerWallet_;
@@ -159,7 +162,9 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
 
         // Net collection registration convention: text must be the raw name.
         // Keep the registration best-effort, as with other Net hooks.
-        try NET.sendMessage(name_, TOPIC_COLLECTION, abi.encodePacked(tx.origin)) {} catch {}
+        if (netEnabled) {
+            try NET.sendMessage(name_, TOPIC_COLLECTION, abi.encodePacked(tx.origin)) {} catch {}
+        }
     }
 
     // --- ERC165 Disambiguation ---
@@ -364,6 +369,7 @@ abstract contract MintbayNetIntegratedERC721A is OwnableBasic, ERC721AC, BasicRo
         uint256 quantity
     ) internal virtual override {
         super._afterTokenTransfers(from, to, startTokenId, quantity);
+        if (!netEnabled) return;
 
         if (from == address(0)) {
             for (uint256 i = 0; i < quantity; i++) {

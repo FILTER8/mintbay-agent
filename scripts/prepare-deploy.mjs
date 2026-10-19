@@ -29,7 +29,10 @@ async function run(){
  const generator=spawnSync(process.execPath,genArgs,{encoding:'utf8',maxBuffer:32*1024*1024});
  if(generator.status!==0)throw Error('Source generator failed:\n'+generator.stderr+'\n'+generator.stdout);
  const record=JSON.parse(await readFile(join(generated,'generation.json'),'utf8'));
- assert(record.chainId===4663,'Only Robinhood Chain (4663) is supported in this command');
+ const chainNames={1:'mainnet',130:'unichain',137:'polygon',4663:'robinhood',8453:'base',42161:'arbitrum'};
+ assert(Object.hasOwn(chainNames,record.chainId),'Unsupported Mintbay chain ID: '+record.chainId);
+ const netEnabled=[1,130,4663,8453].includes(record.chainId);
+ const nativeCurrency=record.chainId===137?'POL':'ETH';
  const main=record.contractName || `Mintbay_${record.buildId.replaceAll('-', '_')}`;
  const projectFiles=[`${main}.sol`,`${main}Data.sol`,`${main}Renderer.sol`,'contracts/MintbayNetIntegratedERC721A.sol'];
  const sources={};
@@ -63,9 +66,9 @@ async function run(){
  await mkdir(output,{recursive:true});
  await writeFile(join(output,'StandardInput.json'),JSON.stringify(standardInput,null,2)+'\n');
  await writeFile(join(output,'abi.json'),JSON.stringify(artifact.abi,null,2)+'\n');
- const tx={chainId:4663,to:null,data:'0x'+bytecode,value:'0'};
+ const tx={chainId:record.chainId,to:null,data:'0x'+bytecode,value:'0'};
  await writeFile(join(output,'transaction.json'),JSON.stringify(tx,null,2)+'\n');
- const summary={buildId:record.buildId,chainId:4663,contractName:main,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr should use its native deploy_contract flow for CREATE2 contract creation, using the exact generated initcode and preserving StandardInput.json for verification.'};
+ const summary={buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,contractName:main,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256:sha(await readFile(join(output,'StandardInput.json'))),initCodeBytes:bytecode.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,transactionFile:'transaction.json',standardInputFile:'StandardInput.json',warnings:errors.filter(x=>x.severity!=='error').map(x=>x.formattedMessage),status:'READY_FOR_REVIEW_AND_BANKR_CONTRACT_CREATION',note:'Compiled and encoded only. Not deployed, EVM-tested, audited, explorer-verified, or registered. Bankr should use its native deploy_contract flow for CREATE2 contract creation, using the exact generated initcode and preserving StandardInput.json for verification.'};
  await writeFile(join(output,'prepare-result.json'),JSON.stringify(summary,null,2)+'\n');
  console.log(JSON.stringify({...summary,transaction:tx},null,2));
 }
