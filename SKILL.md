@@ -1,6 +1,6 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs on Robinhood Chain with Bankr CREATE2; prepare exact Solidity source and bytecode, verify deployment, and share token/gallery links.
+description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs on Robinhood Chain with Bankr CREATE2; prepare exact Solidity source and bytecode, verify deployment, and share individual tokens, wallet galleries, and the latest Mintbay activity on X using verified public share links.
 ---
 
 # Mintbay: Build ID -> Bankr -> verified NFT
@@ -38,7 +38,18 @@ After a successful deployment (not during construction), use the **Net Protocol 
 
 See [DEPLOYMENT.md](references/DEPLOYMENT.md) for the handoff and [GENERATION-V5.md](references/GENERATION-V5.md) for generation. No registration secret is stored in this skill.
 
-## Share
+## Share the existing Mintbay.fun profile card on X
+
+For a wallet's **16 most recently acquired Mintbay NFTs that it still owns**, use the existing public profile page and its Open Graph share card. No extra image generation or new endpoint is required.
+
+- Profile: `https://mintbay.fun/profile/{wallet}`
+- Share-card image: `https://mintbay.fun/profile/{wallet}/opengraph-image`
+
+To share: resolve the user's wallet, validate its address, and create an X post containing the **profile URL**. The Mintbay page already defines a `summary_large_image` card that X may render. If the user wants an actual uploaded photo rather than a website card, use a media-capable X tool, but do not promise that a URL alone always produces a preview. Confirm before posting and report the actual post URL only after success.
+
+Example: "Post my Mintbay.fun profile card with my newest 16 NFTs. Wallet: 0x..."
+
+The profile card shows **recently acquired tokens still held**, not necessarily the newest 16 original mints across all collections. A platform-wide latest-mints card is not implemented; do not invent a URL for one.
 
 Token: `https://mintbay.xyz/token/{chainId}/{contractAddress}/{tokenId}`
 
