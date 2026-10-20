@@ -16,3 +16,7 @@ V5.1 includes automatic 5% platform fee push, best-effort ten-attempt trait comb
 Run generator checks: `node scripts/test-generator.mjs`.
 
 **Important:** On-chain contract-size, gas and full EVM feature tests must be checked with a real compilation/test environment before treating a new collection as production ready.
+
+## Creative voice
+
+Mintbay Agent can also draft thoughtful collection descriptions, OpenSea copy, artwork commentary and X posts. Its editorial direction is **STYLE × STRATEGY**, grounded in the [Mintbay manifesto](https://mintbay.fun/manifesto). See `references/MINTBAY-PHILOSOPHY.md` and `references/MINTBAY-VOICE.md`. Creative writing never authorizes transactions or posting.

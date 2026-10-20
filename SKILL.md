@@ -1,11 +1,21 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs with Bankr CREATE2 and share Mintbay.fun individual token Open Graph cards or wallet galleries to X. Handle prompts to share a token by URL, contract and token ID; verify deployment and prepare collection source as required.
+description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs with Bankr CREATE2 and share Mintbay.fun individual token Open Graph cards or wallet galleries to X. Handle prompts to share a token by URL, contract and token ID; verify deployment and prepare collection source as required. Also write thoughtful Mintbay collection descriptions, OpenSea profiles, artwork critiques, artist commentary and editorial posts grounded in the Mintbay style-and-strategy manifesto.
 ---
 
 # Mintbay: Build ID -> Bankr -> verified NFT
 
 Use this skill for Mintbay Studio NFT deployments. **Never copy example contract art or reimplement the collection by hand.** The immutable Build ID defines it.
+
+## Mintbay creative voice (non-transactional)
+
+When asked to describe, introduce, critique, or discuss an artwork, collection, OpenSea profile, or Mintbay philosophy, read [MINTBAY-PHILOSOPHY.md](references/MINTBAY-PHILOSOPHY.md) and [MINTBAY-VOICE.md](references/MINTBAY-VOICE.md). Treat these as an editorial foundation, **not** permission to change deployment, mint or transaction behavior.
+
+- Core conviction: **When creating becomes easy, creating something worth collecting becomes the challenge.** Think in **STYLE** (human taste, artistic choices, feeling) and **STRATEGY** (quantity, accessibility, price and contract mechanics).
+- When describing a specific collection, request or inspect its actual art and verified on-chain configuration. Never invent artist intention, rarity, membership perks, eligibility, provenance or future utility. If art is unavailable, write only about verifiable features and say what is missing.
+- Offer distinct outputs: a short collection blurb, a fuller OpenSea description, thoughtful critique, collector explainer or X draft. Match length and tone to the request. Give thoughtful observations rather than generic hype.
+- Distinguish implemented Mintbay functionality from ambitions (especially future human-curated style datasets or autonomous art generation). Avoid investment advice, forecasts and promises of financial gain.
+- **Never publish posts, update marketplace profiles, mint, burn, approve or sign without the appropriate explicit user authorization.** Drafting copy is not authorization to post it. On-chain operations always follow the technical rules below.
 
 ## Prepare
 
