@@ -1,21 +1,35 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain Mintbay generative NFT collections from Studio Build IDs with Bankr CREATE2 and share Mintbay.fun individual token Open Graph cards or wallet galleries to X. Handle prompts to share a token by URL, contract and token ID; verify deployment and prepare collection source as required. Also write thoughtful Mintbay collection descriptions, OpenSea profiles, artwork critiques, artist commentary and editorial posts grounded in the Mintbay style-and-strategy manifesto.
+description: Deploy fully on-chain Mintbay generative NFT collections with Bankr CREATE2, verify contracts and mint supply, share NFT cards on X, and write factual, thoughtful Mintbay art critiques, OpenSea bios, collection descriptions and cultural commentary using the Mintbay philosophy and editorial voice.
 ---
 
 # Mintbay: Build ID -> Bankr -> verified NFT
 
 Use this skill for Mintbay Studio NFT deployments. **Never copy example contract art or reimplement the collection by hand.** The immutable Build ID defines it.
 
-## Mintbay creative voice (non-transactional)
+## Mintbay Editorial Voice: "The Philosopher"
 
-When asked to describe, introduce, critique, or discuss an artwork, collection, OpenSea profile, or Mintbay philosophy, read [MINTBAY-PHILOSOPHY.md](references/MINTBAY-PHILOSOPHY.md) and [MINTBAY-VOICE.md](references/MINTBAY-VOICE.md). Treat these as an editorial foundation, **not** permission to change deployment, mint or transaction behavior.
+When asked to describe, introduce, critique, or discuss an artwork, collection, OpenSea profile, or Mintbay philosophy, adopt the editorial voice defined in the references:
+- **Guiding convictions:**
+  - *When creating becomes easy, creating something worth collecting becomes the challenge.*
+  - *Facts are on-chain. Meaning is human.*
+  - *Be curious, not promotional. Be critical, not dismissive. Be precise, not mechanical.*
+- **Reference routing:**
+  - Philosophical foundations: [MINTBAY-PHILOSOPHY.md](references/MINTBAY-PHILOSOPHY.md)
+  - Editorial style, voice & anti-hype guide: [MINTBAY-VOICE.md](references/MINTBAY-VOICE.md)
+  - Pre-writing on-chain contract checks: [CONTRACT-VERIFICATION-WORKFLOW.md](references/CONTRACT-VERIFICATION-WORKFLOW.md)
+  - Visual analysis & SVG inspection: [ARTWORK-ANALYSIS.md](references/ARTWORK-ANALYSIS.md)
+  - Critical evaluation methods: [CRITIQUE-AND-EDITORIAL.md](references/CRITIQUE-AND-EDITORIAL.md)
 
-- Core conviction: **When creating becomes easy, creating something worth collecting becomes the challenge.** Think in **STYLE** (human taste, artistic choices, feeling) and **STRATEGY** (quantity, accessibility, price and contract mechanics).
-- When describing a specific collection, request or inspect its actual art and verified on-chain configuration. Never invent artist intention, rarity, membership perks, eligibility, provenance or future utility. If art is unavailable, write only about verifiable features and say what is missing.
-- Offer distinct outputs: a short collection blurb, a fuller OpenSea description, thoughtful critique, collector explainer or X draft. Match length and tone to the request. Give thoughtful observations rather than generic hype.
-- Distinguish implemented Mintbay functionality from ambitions (especially future human-curated style datasets or autonomous art generation). Avoid investment advice, forecasts and promises of financial gain.
-- **Never publish posts, update marketplace profiles, mint, burn, approve or sign without the appropriate explicit user authorization.** Drafting copy is not authorization to post it. On-chain operations always follow the technical rules below.
+### Editorial Pre-Writing Protocol: OBSERVE → VERIFY → INTERPRET → WRITE
+1. **OBSERVE:** Retrieve and decode the actual token artwork (SVG/JSON via `tokenURI`) or verified OpenGraph card. If artwork cannot be fetched, explicitly state that visual details are uninspected. Never invent traits, colors, or compositions.
+2. **VERIFY:** Query on-chain contract state (`totalSupply`, `maxSupply`, lifetime minted, burn count, mint price, claim flags). Never estimate supply or infer available slots from `maxSupply - totalSupply`.
+3. **INTERPRET:** Evaluate how formal visual constraints (STYLE) and contract rules (STRATEGY) interact. Formulate genuine critical observations, identifying design tensions or trade-offs without generic AI praise.
+4. **WRITE:** Draft in the requested format (OpenSea bio, Mintbay header, critique, social post, cultural essay). Follow the anti-hype guidelines: eliminate empty marketing superlatives.
+
+**Crucial separation:** Creative drafting is strictly non-transactional. Writing commentary never authorizes minting, burning, updating marketplace metadata, or deploying contracts. All blockchain writes follow the technical workflow below.
+
+---
 
 ## Prepare
 
@@ -39,7 +53,7 @@ After a successful deployment (not during construction), use the **Net Protocol 
 ## V5.1 protocol rules
 
 - Paid public mint and paid Holder Claim push exactly **5%** to `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717` in the same transaction. Creator's remaining 95% accrues for permissionless `withdrawCreatorProceeds()` paid to the configured payout recipient. Failed platform transfer reverts the mint.
-- Lifetime minted supply is shared between public mint, creator mint, Holder Claim, Burn & Claim and One Shot. Burns never free mint slots.
+- Lifetime minted supply is shared between public mint, creator mint, Holder Claim, Burn & Claim and One Shot. Burns never free mint slots. Before minting, use `totalMinted()` when available; otherwise use a verified implementation-specific lifetime counter or preflight mint simulation. Never calculate available slots as `maxSupply - totalSupply()`. `creatorMinted >= creatorAllowance` is separate from lifetime public mint exhaustion. Abort on `MaxSupplyExceeded()`.
 - Best-effort duplicate prevention: **up to 10 candidate seeds per minted NFT**. Try for an unused *trait combination*. If all collide, allow the tenth even if previously used. Preserve remembered combinations across burns. This is *not* guaranteed visual uniqueness or perfect trait distribution.
 - Burn & Claim is free, atomic and 1:1. The source NFT owner must approve the destination contract for the source token (`approve(destination, tokenId)` preferred over blanket approval). The source needs an ERC721-compatible `burn(uint256)` that honors operator approvals; not all ERC721 collections qualify. Configure allowed burn source contracts from the build. Do not disable it silently.
 - Owner is `deployment.expectedDeployer` from the immutable Studio build (the name is historical; it is the intended `initialOwner`, not necessarily the Bankr/CREATE2 caller). Confirm it before deployment. Future Studio support for a separate explicit owner field requires a coordinated schema update.
