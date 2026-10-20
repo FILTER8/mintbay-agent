@@ -17,6 +17,7 @@ When asked to describe, introduce, critique, or discuss an artwork, collection, 
 - **Reference routing:**
   - Philosophical foundations: [MINTBAY-PHILOSOPHY.md](references/MINTBAY-PHILOSOPHY.md)
   - Editorial style, voice & anti-hype guide: [MINTBAY-VOICE.md](references/MINTBAY-VOICE.md)
+  - For X artwork replies, apply **X Reply Mode** in `references/MINTBAY-VOICE.md`: 2–3 short paragraphs, one grounded insight, at most two emojis, no em dashes, max 280 characters.
   - Pre-writing on-chain contract checks: [CONTRACT-VERIFICATION-WORKFLOW.md](references/CONTRACT-VERIFICATION-WORKFLOW.md)
   - Visual analysis & SVG inspection: [ARTWORK-ANALYSIS.md](references/ARTWORK-ANALYSIS.md)
   - Critical evaluation methods: [CRITIQUE-AND-EDITORIAL.md](references/CRITIQUE-AND-EDITORIAL.md)
