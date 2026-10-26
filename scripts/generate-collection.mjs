@@ -172,7 +172,7 @@ ${media ? `    address public immutable chunk0;
     }
 ` : ''}    ${media ? "" : `constructor(address data_) {require(data_.code.length>0,"Data missing");data=${dt}(data_);}`}
     function svg(bytes32 seed) public view returns(string memory){\n        uint256[${c.layers.length}] memory chosen=data.choose(seed);\n        uint8[${grid*grid}] memory pixels_;\n        for(uint256 l=0;l<${c.layers.length};l++){bytes memory p=data.pixels(chosen[l]);for(uint256 i=0;i<${grid*grid};i++)if(uint8(p[i])!=0)pixels_[i]=uint8(p[i]);}\n        string memory rects="";\n        for(uint256 i=0;i<${grid*grid};i++)if(pixels_[i]!=0){rects=string.concat(rects,'<rect x="',(i%${grid}).toString(),'" y="',(i/${grid}).toString(),'" width="1" height="1" fill="',data.paletteColor(pixels_[i]),'"/>');}\n        return string.concat('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">',rects,'</svg>');\n    }\n    function attributes(bytes32 seed) public view returns(string memory){\n        uint256[${c.layers.length}] memory chosen=data.choose(seed);\n        string memory a="";\n        for(uint256 l=0;l<${c.layers.length};l++){a=string.concat(a,l==0?"":",",'{"trait_type":"',data.layerName(l),'","value":"',data.traitName(chosen[l]),'"}');}\n        return string.concat('[',a,']');\n    }\n    function fingerprint(bytes32 seed) external view returns(bytes32){return keccak256(abi.encode(data.choose(seed)));}
-    function tokenURI(uint256 id,bytes32 seed) external view returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed)${media ? `,',"animation_url":"data:text/html;base64,',Base64.encode(html(id,seed))` : ''},'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
+    function tokenURI(uint256 id,bytes32 seed) external view returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed)${media ? `,',"animation_url":"data:text/html;base64,',Base64.encode(html(id,seed)),'"'` : ''},'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
 function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;const header=typeof co.sourceHeaderArt==='string'?co.sourceHeaderArt.replace(/\r\n?/g,'\n').split('\n').map(x=>'// '+x).join('\n')+'\n':'';
  const claimLines=sources.map(x=>`        approvedClaimCollections[${checksumAddress(x.contract)}]=ApprovedClaim(true,${money(x.mintPriceEth)});`);
  const burnLines=s.burnSources.map(x=>`        approvedBurnClaimCollections[${checksumAddress(typeof x==='string'?x:x.contract)}]=true;`);
@@ -193,10 +193,26 @@ function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;c
     }
 `;
  return `// SPDX-License-Identifier: MIT\n${header}pragma solidity ^0.8.24;\nimport {MintbayCoreERC721A} from "./contracts/MintbayCoreERC721A.sol";\nimport {${id}Renderer} from "./${id}Renderer.sol";\ncontract ${id} is MintbayCoreERC721A {
-    ${id}Renderer public immutable renderer;\n    constructor(address renderer_) MintbayCoreERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n        require(renderer_.code.length > 0,"Renderer missing");\n        renderer=${id}Renderer(renderer_);\n${lines}\n    }\n${uniqueness}    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
+    ${id}Renderer public renderer;
+    bool public isRendererLocked;
+    event RendererUpdated(address indexed oldRenderer, address indexed newRenderer);
+    event RendererLocked();
+    function setRenderer(address newRenderer) external onlyOwner {
+        require(!isRendererLocked, "Renderer permanently locked");
+        require(newRenderer != address(0) && newRenderer.code.length > 0, "Invalid renderer");
+        address oldRenderer = address(renderer);
+        renderer = ${id}Renderer(newRenderer);
+        emit RendererUpdated(oldRenderer, newRenderer);
+    }
+    function lockRenderer() external onlyOwner {
+        require(!isRendererLocked, "Already locked");
+        isRendererLocked = true;
+        emit RendererLocked();
+    }
+    constructor(address renderer_) MintbayCoreERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n        require(renderer_.code.length > 0,"Renderer missing");\n        renderer=${id}Renderer(renderer_);\n        if (${!!s.lockRendererImmediately}) { isRendererLocked = true; emit RendererLocked(); }\n${lines}\n    }\n${uniqueness}    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
 }
 function configAddress(s){return s.expectedDeployer;}
-async function main(){const all=await load();const s=check(all);s.expectedDeployer=all.config.deployment.expectedDeployer;
+async function main(){const all=await load();const s=check(all);s.expectedDeployer=all.config.deployment.expectedDeployer;ok(all.config.lockRendererImmediately === undefined || typeof all.config.lockRendererImmediately === 'boolean','lockRendererImmediately must be a boolean');s.lockRendererImmediately = all.config.lockRendererImmediately === true;
  const build=all.manifest.id;const id=toPascalCase(s.co.name);ok(nameSafe(id),'Bad identifier');
  const htmlFile=pick('--html');
  let media=null;

@@ -20,7 +20,10 @@ for(const count of [3,260]){
  await writeFile(join(dir,'manifest.json'),JSON.stringify(manifest));
  execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',join(dir,'out')]);
  const src=await readFile(join(dir,'out','TestAData.sol'),'utf8');if(!src.includes('function layerOffset'))throw Error('layer offset regression');if(count===260){const shard=await readFile(join(dir,'out','TestADataShard0.sol'),'utf8');if(!shard.includes('id==0 && word==1'))throw Error('multiword mask regression');}
- const col=await readFile(join(dir,'out','TestA.sol'),'utf8');if(!col.includes('██'))throw Error('unicode missing');if(!col.includes('renderer.fingerprint(choice)'))throw Error('External trait lookup missing');if(!col.includes('renderer.tokenURI(tokenId,_tokenToSeed[tokenId])'))throw Error('External renderer hookup missing');if(!col.includes('_usedTraitCombinations'))throw Error('uniqueness missing');if(count===3&&!col.includes('approvedBurnClaimCollections[0x4e68e1F912d5D9c3fb6795B2af87FfaC87882575]'))throw Error('burn allowlist missing');if(!col.includes('0xB316e8ea7bC9B24ea5Fd4eBd07051678C27Ffe79'))throw Error('deployer checksum regression');if(!col.includes('0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653'))throw Error('claim checksum regression');
+ const col=await readFile(join(dir,'out','TestA.sol'),'utf8');if(!col.includes('██'))throw Error('unicode missing');
+ if(!col.includes('function setRenderer(address newRenderer) external onlyOwner')||!col.includes('function lockRenderer() external onlyOwner')||!col.includes('bool public isRendererLocked;'))throw Error('Renderer update/seal functions missing');
+ if(col.includes('immutable renderer'))throw Error('Renderer must be updateable until sealed');
+ if(!col.includes('if (false) { isRendererLocked = true; emit RendererLocked(); }'))throw Error('Default renderer lock must be disabled');if(!col.includes('renderer.fingerprint(choice)'))throw Error('External trait lookup missing');if(!col.includes('renderer.tokenURI(tokenId,_tokenToSeed[tokenId])'))throw Error('External renderer hookup missing');if(!col.includes('_usedTraitCombinations'))throw Error('uniqueness missing');if(count===3&&!col.includes('approvedBurnClaimCollections[0x4e68e1F912d5D9c3fb6795B2af87FfaC87882575]'))throw Error('burn allowlist missing');if(!col.includes('0xB316e8ea7bC9B24ea5Fd4eBd07051678C27Ffe79'))throw Error('deployer checksum regression');if(!col.includes('0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653'))throw Error('claim checksum regression');
  const record=JSON.parse(await readFile(join(dir,'out','generation.json'),'utf8'));if(record.contractName!=='TestA')throw Error('contract name regression');
  console.log(`PASS ${count} traits generator and checksum checks`);
 }
@@ -45,6 +48,32 @@ for(const count of [3,260]){
  if(recovered!==template)throw Error('Media template changed in transit');
  if(info.media.sha256!==hash(template))throw Error('Media checksum mismatch');
  const renderer=await readFile(join(out,'sources','TestARenderer.sol'),'utf8');
- if(!renderer.includes('SSTORE2.read(chunk0)')||!renderer.includes('"animation_url"') && !renderer.includes('animation_url'))throw Error('Media renderer missing');
+ if(!renderer.includes('SSTORE2.read(chunk0)') || !renderer.includes('animation_url'))throw Error('Media renderer missing');
+ // Regression: the HTML base64 value MUST be quoted before the final JSON brace.
+ // This checks the actual emitted Solidity concatenation, not just the template generator.
+ if(!renderer.includes("Base64.encode(html(id,seed)),'\"','}')"))throw Error('animation_url missing closing JSON quote');
+ const htmlTail='data:text/html;base64,'+Buffer.from(template).toString('base64');
+ const envelope='{"image":"data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=","animation_url":"'+htmlTail+'"}';
+ const decoded=JSON.parse(envelope);
+ if(Buffer.from(decoded.animation_url.split(',')[1],'base64').toString()!==template)throw Error('HTML metadata decode regression');
+ const col=await readFile(join(out,'sources','TestA.sol'),'utf8');
+ if(!col.includes('function setRenderer(address newRenderer)') || !col.includes('function lockRenderer()'))throw Error('Renderer controls missing from HTML collection');
  console.log('PASS single-contract HTML media and injection marker');
+}
+
+// Explicit immediate seal is opt-in and pinned into the immutable build config.
+{
+ const dir=lastFixtureDir;
+ const config=JSON.parse(await readFile(join(dir,'config.json'),'utf8'));
+ config.lockRendererImmediately=true;
+ const configText=JSON.stringify(config);
+ await writeFile(join(dir,'config.json'),configText);
+ const manifest=JSON.parse(await readFile(join(dir,'manifest.json'),'utf8'));
+ manifest.files.config.sha256=hash(configText);
+ await writeFile(join(dir,'manifest.json'),JSON.stringify(manifest));
+ const out=await mkdtemp(join(tmpdir(),'mb-locked-test-'));
+ execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',out]);
+ const collection=await readFile(join(out,'TestA.sol'),'utf8');
+ if(!collection.includes('if (true) { isRendererLocked = true; emit RendererLocked(); }'))throw Error('Explicit immediate renderer seal missing');
+ console.log('PASS optional immediate renderer seal');
 }
