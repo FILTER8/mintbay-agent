@@ -25,7 +25,7 @@ async function run(){
  try{solc=requireFromDeps('solc');}catch{throw Error('Install compiler dependencies once: npm install --prefix assets/contracts/v6 --no-audit --no-fund');}
  assert(solc.version().startsWith('0.8.24+'),'Pinned solc 0.8.24 required, found '+solc.version());
  const generated=join(output,'sources');
- const genArgs=[join(repo,'scripts/generate-collection.mjs'),build,'--out',generated];
+ const genArgs=[join(repo,'scripts/generate-collection.mjs'),build,'--out',generated];if(flag('--html'))genArgs.push('--html',flag('--html'));
  const generator=spawnSync(process.execPath,genArgs,{encoding:'utf8',maxBuffer:32*1024*1024});
  if(generator.status!==0)throw Error('Source generator failed:\n'+generator.stderr+'\n'+generator.stdout);
  const record=JSON.parse(await readFile(join(generated,'generation.json'),'utf8'));
@@ -76,7 +76,23 @@ async function run(){
   await writeFile(join(output,`${item.key}-initcode.txt`),'0x'+init+'\n');
   components.push({role:item.key,contractName:item.name,source:item.source,initCodeBytes:init.length/2,runtimeBytes:runtime.length/2,runtimeHeadroomBytes:24576-runtime.length/2,initCodeSha256:sha(Buffer.from(init,'hex')),abiFile:`${item.key}-abi.json`,initcodeFile:`${item.key}-initcode.txt`});
  }
- const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,components,deploymentOrder:['renderer','collection'],status:'V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST',warnings:['Studio build input currently uses V5 fields; V6 schema migration required','Renderer constructor argument must be bound after renderer deployment','No local EVM simulation, animation storage, or ERC6551 execution test performed','Do not broadcast from this manifest until validation gates are implemented']};
+ // Immutable media initcode: PUSH2 length, DUP1, PUSH1 0x0a, RETURNDATASIZE, CODECOPY, RETURNDATASIZE, RETURN, STOP + data.
+ // Chunk pointers must be deployed and independently verified before renderer deployment.
+ const mediaComponents=[];
+ if(record.media){
+  for(let i=0;i<2;i++){
+   const raw=await readFile(join(generated,'media',`chunk${i}.bin`));
+   assert(raw.length>0&&raw.length<=20000,'Invalid media chunk length '+i);
+   const runtime=Buffer.concat([Buffer.from([0]),raw]);
+   const length=runtime.length;
+   const init=Buffer.concat([Buffer.from([0x61,length>>8,length&255,0x80,0x60,0x0a,0x3d,0x39,0x3d,0xf3]),runtime]);
+   assert(runtime.length<=24576 && init.length<=49152,'Media bytecode exceeds EVM limits');
+   const name=`chunk${i}`;
+   await writeFile(join(output,`${name}-initcode.txt`),'0x'+init.toString('hex')+'\n');
+   mediaComponents.push({role:name,initCodeBytes:init.length,runtimeBytes:runtime.length,runtimeSha256:sha(runtime),payloadSha256:sha(raw),initCodeSha256:sha(init),initcodeFile:`${name}-initcode.txt`});
+  }
+ }
+ const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,media:record.media,components:[...mediaComponents,...components],deploymentOrder:[...mediaComponents.map(x=>x.role),'renderer','collection'],status:'V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST',warnings:['Studio build input currently uses V5 fields; V6 schema migration required','Renderer constructor argument must be bound after renderer deployment','On-chain chunk creation artifacts are generated but local EVM tokenURI reconstruction and ERC6551 execution remain untested','Do not broadcast from this manifest until validation gates are implemented']};
  await writeFile(join(output,'deployment-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
  console.log(JSON.stringify(manifest,null,2));
 

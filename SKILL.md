@@ -7,7 +7,7 @@ description: Mintbay V6 on-chain NFT deployment research, source generation, pre
 
 V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
 
-**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it does not yet implement verified on-chain HTML media chunks, `animation_url`, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
+**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates optional immutable HTML chunk initcode and `animation_url` from a supplied file, but has not passed local EVM metadata reconstruction tests, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
 
 ## Single workflow
 
@@ -15,7 +15,7 @@ V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions,
 2. Install dependencies: `npm install --prefix assets/contracts/v6 --no-audit --no-fund`.
 3. Run `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`.
 4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Current manifest status `V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST` is an **absolute stop**, not permission to deploy.
-5. For a build requesting SVG animation, HTML games or token-specific scripts: STOP until the complete media-store and `animation_url` generator are implemented, compiled, and tested. Never silently reduce to static SVG.
+5. For HTML games: use `node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BUILD_ID`. The HTML must include exactly one `/* MINTBAY_NFT_INJECTION */` marker within a `<script>` before any code that reads `window.__MINTBAY_NFT__`. Keep both raw UTF-8 segments <=20 KB. Do not treat generated media artifacts as deployed or tested; stop before broadcasting.
 6. If a feature is selected, preserve it. Do not remove Holder Claim, Burn & Claim, One Shot, supply reduction, royalty enforcement, creator mint or Net hooks merely to satisfy bytecode limits.
 7. Validate external SVG renderer, NFT creation, feature parity and tokenURI decoding on a local EVM. Test lifetime mint caps and ERC-6551 account behavior. Do not broadcast unless the creator approves an independently verified release-ready manifest.
 8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 component transactions, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.

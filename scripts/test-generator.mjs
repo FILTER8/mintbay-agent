@@ -25,3 +25,25 @@ for(const count of [3,260]){
 }
 
 // Burn & Claim constructor configuration is tested on a separate local fixture below.
+
+// Optional HTML media: raw UTF-8 chunks must reconstruct the exact template,
+// and renderer source must contain on-chain SSTORE2 access and animation_url.
+{
+ const fs=await import('node:fs/promises');
+ const dirs=(await fs.readdir(tmpdir())).filter(n=>n.startsWith('mb-gen-'));
+ const sourceDir=join(tmpdir(),dirs[dirs.length-1]);
+ const out=await mkdtemp(join(tmpdir(),'mb-media-test-'));
+ const html=join(out,'game.html');
+ const marker='/* MINTBAY_NFT_INJECTION */';
+ const template=`<!doctype html><html><script>\n${marker}\nconsole.log(window.__MINTBAY_NFT__.id);\n</script></html>`;
+ await writeFile(html,template);
+ execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',sourceDir,'--html',html,'--out',join(out,'sources')]);
+ const info=JSON.parse(await readFile(join(out,'sources','generation.json'),'utf8'));
+ const a=await readFile(join(out,'sources','media','chunk0.bin'));
+ const b=await readFile(join(out,'sources','media','chunk1.bin'));
+ if(Buffer.concat([a,Buffer.from(marker),b]).toString()!==template)throw Error('Media template changed in transit');
+ if(info.media.sha256!==hash(template))throw Error('Media checksum mismatch');
+ const renderer=await readFile(join(out,'sources','TestARenderer.sol'),'utf8');
+ if(!renderer.includes('SSTORE2.read(chunk0)')||!renderer.includes('"animation_url"') && !renderer.includes('animation_url'))throw Error('Media renderer missing');
+ console.log('PASS HTML media chunks and injection marker');
+}
