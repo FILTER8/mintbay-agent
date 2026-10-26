@@ -1,11 +1,38 @@
 ---
 name: mintbay-agent
-description: Deploy fully on-chain Mintbay generative NFT collections with Bankr CREATE2, verify contracts and mint supply, share NFT cards on X, and write factual, thoughtful Mintbay art critiques, OpenSea bios, collection descriptions and cultural commentary using the Mintbay philosophy and editorial voice.
+description: Mintbay V6 on-chain NFT deployment research, source generation, preflight compilation, Bankr transaction orchestration, NFT verification, ERC-6551 accounts, and Mintbay artwork editorial writing. Use for Mintbay collection builds, animations, on-chain mini-games, mint deployments and NFT analysis.
 ---
 
-# Mintbay: Build ID -> Bankr -> verified NFT
+# Mintbay V6 - one repository, one active deployment architecture
 
-Use this skill for Mintbay Studio NFT deployments. **Never copy example contract art or reimplement the collection by hand.** The immutable Build ID defines it.
+V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
+
+**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it does not yet implement verified on-chain HTML media chunks, `animation_url`, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
+
+## Single workflow
+
+1. Resolve the immutable Mintbay build manifest and verify all file SHA256 hashes, artwork parity, chain ID, creator ownership, and chosen features.
+2. Install dependencies: `npm install --prefix assets/contracts/v6 --no-audit --no-fund`.
+3. Run `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`.
+4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Current manifest status `V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST` is an **absolute stop**, not permission to deploy.
+5. For a build requesting SVG animation, HTML games or token-specific scripts: STOP until the complete media-store and `animation_url` generator are implemented, compiled, and tested. Never silently reduce to static SVG.
+6. If a feature is selected, preserve it. Do not remove Holder Claim, Burn & Claim, One Shot, supply reduction, royalty enforcement, creator mint or Net hooks merely to satisfy bytecode limits.
+7. Validate external SVG renderer, NFT creation, feature parity and tokenURI decoding on a local EVM. Test lifetime mint caps and ERC-6551 account behavior. Do not broadcast unless the creator approves an independently verified release-ready manifest.
+8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 component transactions, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.
+9. Every component must satisfy EIP-170 runtime 24,576 bytes and EIP-3860 initcode 49,152 bytes; do not treat a compiler pass as an EVM test.
+10. Ethereum 1, Unichain 130, Polygon 137, Robinhood 4663, Base 8453 and Arbitrum 42161 are the configured target chains; verify chain-specific contracts before deployment.
+
+## ERC-6551
+
+Canonical registry `0x000000006551c19487814612e58FE06813775758` and account implementation `0x62DF5D2C60b9B434D017cf90765c4a96e0d486a5` are **candidates for Robinhood 4663**, not a completed universal-chain security review. Verify deployed code, actual signature/execute behavior, chain ownership and deterministic salt for each supported chain. Never require eager account deployment on mint; NFT core needs no ERC-6551 hooks for standard deterministic accounts.
+
+## Media policy
+
+Use compact, self-contained SVG, SMIL animation and HTML mini-games only. Immutable bytecode chunks with Solidity-side reconstruction are the intended V6 media architecture. Do not substitute IPFS, hostedon.net, storedon.net or external scripts as an equivalent fully autonomous deliverable. Do not claim OpenSea supports inline HTML data URIs until tested on the actual viewer.
+
+## Bankr testing instructions
+
+Before requesting transaction approval, Bankr should implement the missing V6 components in THIS repository, run a fixture from ArcadeMachine and return source diffs, sizes, test logs, a decoded `tokenURI`, original/reconstructed HTML SHA256, and contract-by-contract unsigned CREATE2 manifests. Do not deploy until all tests pass and the user explicitly approves.
 
 ## Mintbay Editorial Voice: "The Philosopher"
 
@@ -32,36 +59,6 @@ When asked to describe, introduce, critique, or discuss an artwork, collection, 
 
 ---
 
-## Prepare
-
-```bash
-npm install --prefix assets/contracts/v5 --no-audit --no-fund
-node scripts/prepare-deploy.mjs BUILD_ID --encode-only --out ./generated/BUILD_ID
-```
-
-Read `prepare-result.json`; confirm `chainId`, `bankrChain`, `nativeCurrency` (POL on Polygon, ETH elsewhere), `netEnabled`, hashes, correct configuration, runtime size and compiler warnings. The generated Solidity contract name is derived from the collection name (e.g. `TheTesters.sol`). The full `StandardInput.json`, bytecode and ABI must be preserved. **The compiler output is not an audit.** If a new collection exceeds EIP-170/EIP-3860, stop and report its actual size; do not silently disable features.
-
-## Deploy using Bankr
-
-Use Bankr's native `deploy_contract` CREATE2 workflow on the **build's selected chain** (1 `mainnet`, 130 `unichain`, 137 `polygon`, 4663 `robinhood`, 8453 `base`, 42161 `arbitrum`), not `submit_raw_transaction` (`to:null` is not supported there). Supply the exact generated creation bytecode and verification material. Verify the initial owner from the build and show the predicted address, parameters and estimated cost. Ask for explicit creator approval **before** broadcasting. Never handle a wallet private key.
-
-After the successful receipt, read the actual CREATE2 address and deployed code; verify on the destination chain explorer with saved `StandardInput.json`. The factory receipt may show `contractAddress:null`; obtain the collection address from the Bankr deployment result/factory logs and confirm bytecode. Do not claim verified without explorer confirmation.
-
-## Net launch message after deployment
-
-After a successful deployment (not during construction), use the **Net Protocol skill** to announce the collection once to `feed-<deployedCollectionAddress>` on the build's chain **only when `netEnabled` is true** (Ethereum, Unichain, Robinhood or Base). Skip Net entirely on Polygon and Arbitrum. Include the collection name and verified contract URL. Get the Net transaction hash and report it. **Do not duplicate an existing announcement on retry.** Failed feed posting must not invalidate a completed NFT deployment; report it separately. Net directory indexing may lag.
-
-## V5.1 protocol rules
-
-- Paid public mint and paid Holder Claim push exactly **5%** to `0xcdb9DB46d6C251A334EfF599012011Dc63ff5717` in the same transaction. Creator's remaining 95% accrues for permissionless `withdrawCreatorProceeds()` paid to the configured payout recipient. Failed platform transfer reverts the mint.
-- Lifetime minted supply is shared between public mint, creator mint, Holder Claim, Burn & Claim and One Shot. Burns never free mint slots. Before minting, use `totalMinted()` when available; otherwise use a verified implementation-specific lifetime counter or preflight mint simulation. Never calculate available slots as `maxSupply - totalSupply()`. `creatorMinted >= creatorAllowance` is separate from lifetime public mint exhaustion. Abort on `MaxSupplyExceeded()`.
-- Best-effort duplicate prevention: **up to 10 candidate seeds per minted NFT**. Try for an unused *trait combination*. If all collide, allow the tenth even if previously used. Preserve remembered combinations across burns. This is *not* guaranteed visual uniqueness or perfect trait distribution.
-- Burn & Claim is free, atomic and 1:1. The source NFT owner must approve the destination contract for the source token (`approve(destination, tokenId)` preferred over blanket approval). The source needs an ERC721-compatible `burn(uint256)` that honors operator approvals; not all ERC721 collections qualify. Configure allowed burn source contracts from the build. Do not disable it silently.
-- Owner is `deployment.expectedDeployer` from the immutable Studio build (the name is historical; it is the intended `initialOwner`, not necessarily the Bankr/CREATE2 caller). Confirm it before deployment. Future Studio support for a separate explicit owner field requires a coordinated schema update.
-- Keep existing Limit Break royalties and Net mint/transfer/burn hooks; display ERC2981 royalty settings accurately and do not infer forced royalties from ERC2981 alone.
-- HoodWallet administrator mode remains unsupported by this base; stop for that specific case. Do not block merely for legacy draft/attestation fields if the creator approves the exact transaction.
-
-See [MULTICHAIN.md](references/MULTICHAIN.md) for the six network mappings and [DEPLOYMENT.md](references/DEPLOYMENT.md) for the handoff and [GENERATION-V5.md](references/GENERATION-V5.md) for generation. No registration secret is stored in this skill.
 
 ## Share the existing Mintbay.fun profile card on X
 
