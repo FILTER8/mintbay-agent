@@ -26,3 +26,7 @@ node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BU
 The generator keeps the original HTML bytes without unsafe regex-based JavaScript minification. The entire template (plus a 2-byte marker offset) must fit in 20,000 UTF-8 bytes. It creates one immutable media bytecode artifact. Artwork trait records are separately partitioned into 32-trait Solidity shard contracts; the generated data router delegates reads to those shards, and the external renderer queries the router. Each component has its own EIP-170 limit; the full compilation must still pass. Existing static SVG builds do not require chunks. `deployment-manifest.json` remains **NOT_READY_TO_BROADCAST** until local EVM tests validate the entire dependency graph and `tokenURI` execution. Nothing is broadcast by these scripts.
 
 Run `node scripts/test-generator.mjs` to check both static and media code-generation invariants. Full Solidity compiler dependencies require `npm install --prefix assets/contracts/v6`, then local EVM verification before approving any mainnet transaction.
+
+## V6 Studio / Worker compatibility (October 2026)
+
+New Studio uploads must contain `mintbayV6: { schemaVersion: 6, ... }` and `deployment.baseContract: "assets/contracts/v6/MintbayCoreERC721A.sol"`. Old V5.1 build records remain read-only. The prep tool writes an offline CREATE2 ordered `deployment-manifest.json` and role-specific calldata files; no broadcasting is implemented. This is still **not live deployment ready** until local EVM mint/metadata tests and runtime code checks pass.

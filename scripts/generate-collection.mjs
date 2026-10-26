@@ -64,9 +64,9 @@ async function load() {
  return {manifest,...values};
 }
 function check({manifest,config,artwork,compiledArtwork:c}) {
- ok(manifest.schemaVersion===1 && config.mintbayV5?.schemaVersion===5,'Not V5');
+ ok(manifest.schemaVersion===1 && config.mintbayV6?.schemaVersion===6,'Not a Mintbay V6 build');
  ok(c.format==='mintbay-compiled-artwork-v1' && c.source?.rawArtworkSha256===manifest.files.artwork.sha256,'Compiled artwork lineage mismatch');
- const co=config.collection, v=config.mintbayV5;
+ const co=config.collection, v=config.mintbayV6;
  ok(co&&co.chainId===manifest.chainId && co.name===artwork.name && co.maxSupply===artwork.supply,'Config / artwork mismatch');
  ok(co.platformFeeBps===500 && v.platformFeeBps===500 && v.sharedLifetimeSupply===true,'Protocol fee/lifetime mismatch');
  ok(addr(co.payoutRecipient),'Invalid payout');
@@ -217,7 +217,7 @@ async function main(){const all=await load();const s=check(all);s.expectedDeploy
  const outputs={ ...dataFiles.outputs,[`${id}Renderer.sol`]:makeRenderer(s,id,!!media),[`${id}.sol`]:makeCollection(s,id)};
  await mkdir(join(dest,'contracts'),{recursive:true});const base=join(repo,'assets/contracts/v6/MintbayCoreERC721A.sol');await copyFile(base,join(dest,'contracts/MintbayCoreERC721A.sol'));
  const hashes={};for(const [f,content] of Object.entries(outputs)){await writeFile(join(dest,f),content);hashes[f]=sha(content);}hashes['contracts/MintbayCoreERC721A.sol']=sha(await readFile(base));
- const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:6,media,dataShardCount:dataFiles.shardCount,mode:'sharded-data-external-renderer',note:'V6 experimental; V5 input mapping accepted temporarily. No deployment before full local EVM testing.'};
+ const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:6,media,dataShardCount:dataFiles.shardCount,mode:'sharded-data-external-renderer',note:'Mintbay V6 schema, full local EVM tests pending. No broadcast.'};
  await writeFile(join(dest,'generation.json'),JSON.stringify(record,null,2)+'\n');
  console.log(JSON.stringify({status:'V6_GENERATED_UNVERIFIED',directory:dest,...record},null,2));
 }

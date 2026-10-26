@@ -7,7 +7,7 @@ description: Mintbay V6 on-chain NFT deployment research, source generation, pre
 
 V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
 
-**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates one optional immutable HTML media initcode and `animation_url` from a supplied file, but has not passed local EVM metadata reconstruction tests, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
+**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates one optional immutable HTML media initcode and `animation_url` from a supplied file, and generates unsigned CREATE2 predicted addresses and ABI-linked calldata, but has not passed local EVM metadata reconstruction tests, full ERC-6551 execution tests or safe runtime bytecode recovery verification. Do not claim those components exist or that this is a complete V6 implementation.
 
 ## Single workflow
 
@@ -92,3 +92,11 @@ Legacy Mintbay.xyz token page (older collections only): `https://mintbay.xyz/tok
 Gallery: `https://mintbay.xyz/gallery/share?chain={chainId}&collection={contractAddress}&ids={comma-separated-ids}&grid={gridWidth}&gap=20&margin=68&scale=100&bg=white&labels=0`
 
 See [URLS.md](references/URLS.md). `node scripts/test-generator.mjs` only checks generation, not EVM execution.
+
+## Canonical Studio V6 build format
+
+New builds use `config.mintbayV6` with `schemaVersion: 6`, retaining the previously agreed minting feature keys and protocol settings. The deploy base contract path is `assets/contracts/v6/MintbayCoreERC721A.sol`. Do not generate new builds with `mintbayV5`. Old published builds remain immutable historical records.
+
+`prepare-deploy.mjs` now emits `steps[]` with CREATE2 predicted addresses, constructor arguments, exact unsigned calldata and dependencies. The sole supported CREATE2 factory is `0x4e59b44847b379578588920ca78fbf26c0b4956c`. Do NOT broadcast using these outputs until local EVM tests and runtime code-hash + dependency readback validation have passed. Address existence alone is insufficient to resume any partially deployed collection. The Net integration records final NFT cores only, not helper data contracts.
+
+Before live readiness, local EVM testing must mint and decode `tokenURI`, validate shard boundaries and HTML reconstruction, and execute all configured minting permissions and ERC-6551 ownership scenarios. Every dependency requires runtime code hash verification and post-deployment constructor configuration verification.
