@@ -7,7 +7,7 @@ description: Mintbay V6 on-chain NFT deployment research, source generation, pre
 
 V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
 
-**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates optional immutable HTML chunk initcode and `animation_url` from a supplied file, but has not passed local EVM metadata reconstruction tests, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
+**CURRENT STATUS: EXPERIMENTAL / NOT BROADCAST-READY.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates one optional immutable HTML media initcode and `animation_url` from a supplied file, but has not passed local EVM metadata reconstruction tests, complete ERC-6551 execution tests, feature pruning, or reliable multi-contract CREATE2 orchestration. Do not claim those components exist or that this is a complete V6 implementation.
 
 ## Single workflow
 
@@ -15,10 +15,10 @@ V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions,
 2. Install dependencies: `npm install --prefix assets/contracts/v6 --no-audit --no-fund`.
 3. Run `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`.
 4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Current manifest status `V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST` is an **absolute stop**, not permission to deploy.
-5. For HTML games: use `node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BUILD_ID`. The HTML must include exactly one `/* MINTBAY_NFT_INJECTION */` marker within a `<script>` before any code that reads `window.__MINTBAY_NFT__`. Keep both raw UTF-8 segments <=20 KB. Do not treat generated media artifacts as deployed or tested; stop before broadcasting.
+5. For HTML games: use `node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BUILD_ID`. The HTML must include exactly one `/* MINTBAY_NFT_INJECTION */` marker within a `<script>` before any code that reads `window.__MINTBAY_NFT__`. The entire UTF-8 HTML template including a 2-byte prefix must fit in one 20,000-byte immutable data contract. No HTML splitting. Do not treat generated media artifacts as deployed or tested; stop before broadcasting.
 6. If a feature is selected, preserve it. Do not remove Holder Claim, Burn & Claim, One Shot, supply reduction, royalty enforcement, creator mint or Net hooks merely to satisfy bytecode limits.
 7. Validate external SVG renderer, NFT creation, feature parity and tokenURI decoding on a local EVM. Test lifetime mint caps and ERC-6551 account behavior. Do not broadcast unless the creator approves an independently verified release-ready manifest.
-8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 component transactions, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.
+8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 transactions for data shards, data router, optional media, renderer and NFT core, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.
 9. Every component must satisfy EIP-170 runtime 24,576 bytes and EIP-3860 initcode 49,152 bytes; do not treat a compiler pass as an EVM test.
 10. Ethereum 1, Unichain 130, Polygon 137, Robinhood 4663, Base 8453 and Arbitrum 42161 are the configured target chains; verify chain-specific contracts before deployment.
 
@@ -28,7 +28,7 @@ Canonical registry `0x000000006551c19487814612e58FE06813775758` and account impl
 
 ## Media policy
 
-Use compact, self-contained SVG, SMIL animation and HTML mini-games only. Immutable bytecode chunks with Solidity-side reconstruction are the intended V6 media architecture. Do not substitute IPFS, hostedon.net, storedon.net or external scripts as an equivalent fully autonomous deliverable. Do not claim OpenSea supports inline HTML data URIs until tested on the actual viewer.
+Use compact, self-contained SVG, SMIL animation and HTML mini-games only. Immutable bytecode for one <=20 KB HTML document and separate sharded artwork data with Solidity-side reconstruction are the intended V6 media architecture. Do not substitute IPFS, hostedon.net, storedon.net or external scripts as an equivalent fully autonomous deliverable. Do not claim OpenSea supports inline HTML data URIs until tested on the actual viewer.
 
 ## Bankr testing instructions
 

@@ -18,7 +18,7 @@ for(const count of [3,260]){
  for(const [fn,content] of Object.entries(data)){await writeFile(join(dir,fn),content);manifest.files[fn.replace('.json','').replace('compiled-artwork','compiledArtwork')]={sha256:hash(content)};}
  await writeFile(join(dir,'manifest.json'),JSON.stringify(manifest));
  execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',join(dir,'out')]);
- const src=await readFile(join(dir,'out','TestAData.sol'),'utf8');if(!src.includes('returns (uint256, uint256)'))throw Error('tuple return regression');if(count===260&&!src.includes('id==0 && word==1'))throw Error('multiword regression');
+ const src=await readFile(join(dir,'out','TestAData.sol'),'utf8');if(!src.includes('function layerOffset'))throw Error('layer offset regression');if(count===260){const shard=await readFile(join(dir,'out','TestADataShard0.sol'),'utf8');if(!shard.includes('id==0 && word==1'))throw Error('multiword mask regression');}
  const col=await readFile(join(dir,'out','TestA.sol'),'utf8');if(!col.includes('██'))throw Error('unicode missing');if(!col.includes('renderer.fingerprint(choice)'))throw Error('External trait lookup missing');if(!col.includes('renderer.tokenURI(tokenId,_tokenToSeed[tokenId])'))throw Error('External renderer hookup missing');if(!col.includes('_usedTraitCombinations'))throw Error('uniqueness missing');if(count===3&&!col.includes('approvedBurnClaimCollections[0x4e68e1F912d5D9c3fb6795B2af87FfaC87882575]'))throw Error('burn allowlist missing');if(!col.includes('0xB316e8ea7bC9B24ea5Fd4eBd07051678C27Ffe79'))throw Error('deployer checksum regression');if(!col.includes('0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653'))throw Error('claim checksum regression');
  const record=JSON.parse(await readFile(join(dir,'out','generation.json'),'utf8'));if(record.contractName!=='TestA')throw Error('contract name regression');
  console.log(`PASS ${count} traits generator and checksum checks`);
@@ -40,10 +40,10 @@ for(const count of [3,260]){
  execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',sourceDir,'--html',html,'--out',join(out,'sources')]);
  const info=JSON.parse(await readFile(join(out,'sources','generation.json'),'utf8'));
  const a=await readFile(join(out,'sources','media','chunk0.bin'));
- const b=await readFile(join(out,'sources','media','chunk1.bin'));
- if(Buffer.concat([a,Buffer.from(marker),b]).toString()!==template)throw Error('Media template changed in transit');
+ const prefixLength=a.readUInt16BE(0);const recovered=Buffer.concat([a.subarray(2,2+prefixLength),Buffer.from(marker),a.subarray(2+prefixLength)]).toString();
+ if(recovered!==template)throw Error('Media template changed in transit');
  if(info.media.sha256!==hash(template))throw Error('Media checksum mismatch');
  const renderer=await readFile(join(out,'sources','TestARenderer.sol'),'utf8');
  if(!renderer.includes('SSTORE2.read(chunk0)')||!renderer.includes('"animation_url"') && !renderer.includes('animation_url'))throw Error('Media renderer missing');
- console.log('PASS HTML media chunks and injection marker');
+ console.log('PASS single-contract HTML media and injection marker');
 }

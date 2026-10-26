@@ -34,7 +34,7 @@ async function run(){
  const netEnabled=[1,130,4663,8453].includes(record.chainId);
  const nativeCurrency=record.chainId===137?'POL':'ETH';
  const main=record.contractName || `Mintbay_${record.buildId.replaceAll('-', '_')}`;
- const projectFiles=[`${main}.sol`,`${main}Data.sol`,`${main}Renderer.sol`,'contracts/MintbayCoreERC721A.sol'];
+ const projectFiles=[`${main}.sol`,`${main}Data.sol`,`${main}Renderer.sol`,...Array.from({length:record.dataShardCount||0},(_,i)=>`${main}DataShard${i}.sol`),'contracts/MintbayCoreERC721A.sol'];
  const sources={};
  const normalize=s=>posix.normalize(s);
  const files=new Map();
@@ -58,6 +58,8 @@ async function run(){
  const failures=errors.filter(x=>x.severity==='error');
  if(failures.length)throw Error('Solidity compilation failed:\n'+failures.map(x=>x.formattedMessage).join('\n'));
  const contracts=[
+  ...Array.from({length:record.dataShardCount||0},(_,i)=>({key:`dataShard${i}`,source:`${main}DataShard${i}.sol`,name:`${main}DataShard${i}`})),
+  {key:'data',source:`${main}Data.sol`,name:`${main}Data`},
   {key:'renderer',source:`${main}Renderer.sol`,name:`${main}Renderer`},
   {key:'collection',source:`${main}.sol`,name:main}
  ];
@@ -80,7 +82,7 @@ async function run(){
  // Chunk pointers must be deployed and independently verified before renderer deployment.
  const mediaComponents=[];
  if(record.media){
-  for(let i=0;i<2;i++){
+  for(let i=0;i<1;i++){
    const raw=await readFile(join(generated,'media',`chunk${i}.bin`));
    assert(raw.length>0&&raw.length<=20000,'Invalid media chunk length '+i);
    const runtime=Buffer.concat([Buffer.from([0]),raw]);
@@ -92,7 +94,7 @@ async function run(){
    mediaComponents.push({role:name,initCodeBytes:init.length,runtimeBytes:runtime.length,runtimeSha256:sha(runtime),payloadSha256:sha(raw),initCodeSha256:sha(init),initcodeFile:`${name}-initcode.txt`});
   }
  }
- const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,media:record.media,components:[...mediaComponents,...components],deploymentOrder:[...mediaComponents.map(x=>x.role),'renderer','collection'],status:'V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST',warnings:['Studio build input currently uses V5 fields; V6 schema migration required','Renderer constructor argument must be bound after renderer deployment','On-chain chunk creation artifacts are generated but local EVM tokenURI reconstruction and ERC6551 execution remain untested','Do not broadcast from this manifest until validation gates are implemented']};
+ const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,media:record.media,components:[...mediaComponents,...components],deploymentOrder:[...mediaComponents.map(x=>x.role),...components.filter(x=>x.role.startsWith('dataShard')).map(x=>x.role),'data','renderer','collection'],status:'V6_EXPERIMENTAL_NOT_READY_TO_BROADCAST',warnings:['Studio build input currently uses V5 fields; V6 schema migration required','Constructor arguments for data router, renderer and core require CREATE2 address chaining','On-chain chunk creation artifacts are generated but local EVM tokenURI reconstruction and ERC6551 execution remain untested','Do not broadcast from this manifest until validation gates are implemented']};
  await writeFile(join(output,'deployment-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
  console.log(JSON.stringify(manifest,null,2));
 

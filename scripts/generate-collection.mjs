@@ -109,33 +109,70 @@ const jsonFragment=x=>JSON.stringify(x).slice(1,-1);
 const switchFn=(items, name, type, fallback='0')=>`    function ${name}(uint256 i) internal pure returns (${type}) {\n${items.map((s,i)=>`        if(i==${i}) return ${s};`).join('\n')}\n        return ${fallback};\n    }\n`;
 function makeData(s,id) {
  const {c,grid,n,words}=s;
- const names=id+'Data';
+ // Keep selection logic inside one small router, but distribute every variable-size
+ // trait record across independent immutable deployed contracts.
+ const shardSize=32, count=Math.ceil(n/shardSize), names=id+'Data';
+ const outputs={};
+ const dataInterface=`interface I${id}DataShard { function weight(uint256) external view returns(uint256); function traitName(uint256) external view returns(string memory); function pixels(uint256) external view returns(bytes memory); function mask(uint256,uint256) external view returns(uint256); }`;
+ for(let shard=0;shard<count;shard++){
+  const lo=shard*shardSize,hi=Math.min(n,lo+shardSize);
+  const lines=[];
+  for(let i=lo;i<hi;i++){
+   const t=c.traits[i], masks=[];
+   for(let w=0;w<words;w++){const x=BigInt(t.exclusionMask[w]);if(x)masks.push(`if(word==${w}) return 0x${x.toString(16)};`);}
+   lines.push(`if(id==${i}) return ${t.weight};`);
+  }
+  const makeBranch=(fn,ret,items,fallback)=>`function ${fn}(uint256 id) external pure returns(${ret}) { ${items.join(' ')} return ${fallback}; }`;
+  const sub=c.traits.slice(lo,hi);
+  outputs[`${id}DataShard${shard}.sol`]=`// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\ncontract ${id}DataShard${shard} {\n${makeBranch('weight','uint256',lines,'0')}\n${makeBranch('traitName','string memory',sub.map((t,j)=>`if(id==${lo+j}) return unicode${sol(jsonFragment(t.name))};`),'""')}\n${makeBranch('pixels','bytes memory',sub.map((t,j)=>`if(id==${lo+j}) return hex"${t.pixelsHex}";`),'hex""')}\nfunction mask(uint256 id,uint256 word) external pure returns(uint256){${sub.map((t,j)=>t.exclusionMask.map((v,w)=>BigInt(v)===0n?'':`if(id==${lo+j} && word==${w}) return ${'0x'+BigInt(v).toString(16)};`).filter(Boolean).join(' ')).join(' ')} return 0;}\n}\n`.replaceAll('\\n','\n');
+ }
  const layers=c.layers;
- const funcs=[];
- funcs.push(switchFn(layers.map(x=>`(${x.offset},${x.count})`),'layerOffset','uint256, uint256','(0,0)'));
- funcs.push(switchFn(c.traits.map(t=>String(t.weight)),'weight','uint256'));
- funcs.push(switchFn(c.traits.map(t=>'unicode'+sol(jsonFragment(t.name))),'traitName','string memory','""'));
- funcs.push(switchFn(layers.map(x=>'unicode'+sol(jsonFragment(x.name))),'layerName','string memory','""'));
- funcs.push(switchFn(c.traits.map(t=>`hex"${t.pixelsHex}"`),'pixels','bytes memory','hex""'));
- funcs.push(switchFn(c.palette.map((x,i)=>sol(x)),'paletteColor','string memory','"transparent"'));
- const maskLines=[];
- for(let i=0;i<n;i++)for(let w=0;w<words;w++){const x=BigInt(c.traits[i].exclusionMask[w]);if(x)maskLines.push(`        if (id==${i} && word==${w}) return ${'0x'+x.toString(16)};`);}
- return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nlibrary ${names} {\n    uint256 internal constant GRID = ${grid};\n    uint256 internal constant LAYERS = ${layers.length};\n    uint256 internal constant WORDS = ${words};\n${funcs.join('\n')}\n    function mask(uint256 id,uint256 word) internal pure returns(uint256) {\n${maskLines.join('\n')}\n        return 0;\n    }\n    function choose(bytes32 seed) internal pure returns (uint256[${layers.length}] memory chosen) {\n        uint256[${words}] memory excluded;\n        for(uint256 l=0;l<LAYERS;l++){\n            (uint256 first,uint256 count)=layerOffset(l);\n            uint256 total=0;\n            for(uint256 i=0;i<count;i++){uint256 id=first+i;if((excluded[id/256] & (uint256(1) << (id%256)))==0)total+=weight(id);}\n            require(total>0,"No compatible trait");\n            uint256 roll=uint256(keccak256(abi.encode(seed,l)))%total;\n            uint256 selected=first;\n            for(uint256 i=0;i<count;i++){uint256 id=first+i;if((excluded[id/256] & (uint256(1) << (id%256)))!=0)continue;uint256 w=weight(id);if(roll<w){selected=id;break;}roll-=w;}\n            chosen[l]=selected;\n            for(uint256 w=0;w<WORDS;w++)excluded[w] |= mask(selected,w);\n        }\n    }\n}\n`;
+ const shardSelect=`function _shard(uint256 id) internal view returns(I${id}DataShard) { require(id<${n},"Trait ID"); return I${id}DataShard(shards[id/${shardSize}]); }`;
+ outputs[`${id}Data.sol`]=`// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+${dataInterface}
+contract ${names} {
+    uint256 public constant GRID=${grid}; uint256 public constant LAYERS=${layers.length}; uint256 public constant WORDS=${words};
+    address[] public shards;
+    constructor(address[] memory addresses) { require(addresses.length==${count},"Shard count"); for(uint256 i=0;i<addresses.length;i++){require(addresses[i].code.length>0,"Shard missing");shards.push(addresses[i]);} }
+    ${shardSelect}
+    function layerOffset(uint256 id) public pure returns(uint256,uint256){ ${layers.map((l,i)=>`if(id==${i})return (${l.offset},${l.count});`).join(' ')} return (0,0); }
+    function layerName(uint256 id) external pure returns(string memory){ ${layers.map((l,i)=>`if(id==${i})return unicode${sol(jsonFragment(l.name))};`).join(' ')} return ""; }
+    function paletteColor(uint256 id) external pure returns(string memory){ ${c.palette.map((v,i)=>`if(id==${i})return ${sol(v)};`).join(' ')} return "transparent"; }
+    function weight(uint256 id) public view returns(uint256){return _shard(id).weight(id);}
+    function traitName(uint256 id) external view returns(string memory){return _shard(id).traitName(id);}
+    function pixels(uint256 id) external view returns(bytes memory){return _shard(id).pixels(id);}
+    function mask(uint256 id,uint256 word) public view returns(uint256){return _shard(id).mask(id,word);}
+    function choose(bytes32 seed) external view returns(uint256[${layers.length}] memory chosen){
+      uint256[${words}] memory excluded;
+      for(uint256 l=0;l<LAYERS;l++){
+       (uint256 first,uint256 count)=layerOffset(l);uint256 total=0;
+       for(uint256 i=0;i<count;i++){uint256 id=first+i;if((excluded[id/256]&(uint256(1)<<(id%256)))==0)total+=weight(id);}
+       require(total>0,"No compatible trait");uint256 roll=uint256(keccak256(abi.encode(seed,l)))%total;
+       uint256 selected=first;
+       for(uint256 i=0;i<count;i++){uint256 id=first+i;if((excluded[id/256]&(uint256(1)<<(id%256)))!=0)continue;uint256 w=weight(id);if(roll<w){selected=id;break;}roll-=w;}
+       chosen[l]=selected;for(uint256 w=0;w<WORDS;w++)excluded[w]|=mask(selected,w);
+      }
+    }
+}
+`;
+ return {outputs,shardCount:count};
 }
 function makeRenderer(s,id,media=false){const {grid,c}=s;const nm=id+'Renderer',dt=id+'Data';return `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\nimport {Base64} from "solady/src/utils/Base64.sol";\nimport {LibString} from "solady/src/utils/LibString.sol";\nimport {${dt}} from "./${dt}.sol";\n${media ? 'import {SSTORE2} from "solady/src/utils/SSTORE2.sol";\n' : ''}contract ${nm} {\n    using LibString for uint256;
+    ${dt} public immutable data;
 ${media ? `    address public immutable chunk0;
-    address public immutable chunk1;
-    constructor(address chunk0_, address chunk1_) { require(chunk0_.code.length>0 && chunk1_.code.length>0,"Media missing"); chunk0=chunk0_;chunk1=chunk1_; }
+    constructor(address data_,address chunk0_) { data=${dt}(data_); require(data_.code.length>0,"Data missing"); require(chunk0_.code.length>0,"Media missing"); chunk0=chunk0_; }
     function html(uint256 id,bytes32 seed) public view returns(bytes memory) {
-        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);
+        uint256[${c.layers.length}] memory chosen=data.choose(seed);
         string memory traits="[";
         for(uint256 i=0;i<${c.layers.length};i++)traits=string.concat(traits,i==0?"":",",chosen[i].toString());
         traits=string.concat(traits,"]");
         bytes memory config=bytes(string.concat("window.__MINTBAY_NFT__={id:",id.toString(),",seed:'",LibString.toHexString(uint256(seed),32),"',chosenTraits:",traits,"};\\n"));
-        return abi.encodePacked(SSTORE2.read(chunk0),config,SSTORE2.read(chunk1));
+        bytes memory template=SSTORE2.read(chunk0); uint256 offset=(uint256(uint8(template[0]))<<8)|uint256(uint8(template[1])); bytes memory left=new bytes(offset); bytes memory right=new bytes(template.length-offset-2); for(uint256 i=0;i<offset;i++)left[i]=template[2+i]; for(uint256 i=0;i<right.length;i++)right[i]=template[2+offset+i]; return abi.encodePacked(left,config,right);
     }
-` : ''}    function svg(bytes32 seed) public pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        uint8[${grid*grid}] memory pixels_;\n        for(uint256 l=0;l<${c.layers.length};l++){bytes memory p=${dt}.pixels(chosen[l]);for(uint256 i=0;i<${grid*grid};i++)if(uint8(p[i])!=0)pixels_[i]=uint8(p[i]);}\n        string memory rects="";\n        for(uint256 i=0;i<${grid*grid};i++)if(pixels_[i]!=0){rects=string.concat(rects,'<rect x="',(i%${grid}).toString(),'" y="',(i/${grid}).toString(),'" width="1" height="1" fill="',${dt}.paletteColor(pixels_[i]),'"/>');}\n        return string.concat('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">',rects,'</svg>');\n    }\n    function attributes(bytes32 seed) public pure returns(string memory){\n        uint256[${c.layers.length}] memory chosen=${dt}.choose(seed);\n        string memory a="";\n        for(uint256 l=0;l<${c.layers.length};l++){a=string.concat(a,l==0?"":",",'{"trait_type":"',${dt}.layerName(l),'","value":"',${dt}.traitName(chosen[l]),'"}');}\n        return string.concat('[',a,']');\n    }\n    function fingerprint(bytes32 seed) external pure returns(bytes32){return keccak256(abi.encode(${dt}.choose(seed)));}
-    function tokenURI(uint256 id,bytes32 seed) external ${media ? "view" : "pure"} returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed)${media ? `,',"animation_url":"data:text/html;base64,',Base64.encode(html(id,seed))` : ''},'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
+` : ''}    ${media ? "" : `constructor(address data_) {require(data_.code.length>0,"Data missing");data=${dt}(data_);}`}
+    function svg(bytes32 seed) public view returns(string memory){\n        uint256[${c.layers.length}] memory chosen=data.choose(seed);\n        uint8[${grid*grid}] memory pixels_;\n        for(uint256 l=0;l<${c.layers.length};l++){bytes memory p=data.pixels(chosen[l]);for(uint256 i=0;i<${grid*grid};i++)if(uint8(p[i])!=0)pixels_[i]=uint8(p[i]);}\n        string memory rects="";\n        for(uint256 i=0;i<${grid*grid};i++)if(pixels_[i]!=0){rects=string.concat(rects,'<rect x="',(i%${grid}).toString(),'" y="',(i/${grid}).toString(),'" width="1" height="1" fill="',data.paletteColor(pixels_[i]),'"/>');}\n        return string.concat('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">',rects,'</svg>');\n    }\n    function attributes(bytes32 seed) public view returns(string memory){\n        uint256[${c.layers.length}] memory chosen=data.choose(seed);\n        string memory a="";\n        for(uint256 l=0;l<${c.layers.length};l++){a=string.concat(a,l==0?"":",",'{"trait_type":"',data.layerName(l),'","value":"',data.traitName(chosen[l]),'"}');}\n        return string.concat('[',a,']');\n    }\n    function fingerprint(bytes32 seed) external view returns(bytes32){return keccak256(abi.encode(data.choose(seed)));}
+    function tokenURI(uint256 id,bytes32 seed) external view returns(string memory){\n        string memory j=string.concat('{"name":',${sol(s.co.name+' #')},'"');\n        // Correct JSON escaping of user strings is done at generation time, not in Solidity.\n        j=string.concat('{"name":"',unicode${sol(jsonFragment(s.co.name+' #'))},id.toString(),'","description":"Fully on-chain Mintbay collection","image":"data:image/svg+xml;base64,',Base64.encode(bytes(svg(seed))),'","attributes":',attributes(seed)${media ? `,',"animation_url":"data:text/html;base64,',Base64.encode(html(id,seed))` : ''},'}');\n        return string.concat('data:application/json;base64,',Base64.encode(bytes(j)));\n    }\n}\n` .replace(/        string memory j=string.concat\([^\n]+\n/, '        string memory j;\n');}
 function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;const header=typeof co.sourceHeaderArt==='string'?co.sourceHeaderArt.replace(/\r\n?/g,'\n').split('\n').map(x=>'// '+x).join('\n')+'\n':'';
  const claimLines=sources.map(x=>`        approvedClaimCollections[${checksumAddress(x.contract)}]=ApprovedClaim(true,${money(x.mintPriceEth)});`);
  const burnLines=s.burnSources.map(x=>`        approvedBurnClaimCollections[${checksumAddress(typeof x==='string'?x:x.contract)}]=true;`);
@@ -168,16 +205,19 @@ async function main(){const all=await load();const s=check(all);s.expectedDeploy
   const marker='/* MINTBAY_NFT_INJECTION */';
   ok(raw.includes(marker) && raw.indexOf(marker)===raw.lastIndexOf(marker),'HTML must contain exactly one /* MINTBAY_NFT_INJECTION */ marker inside a script');
   const parts=raw.split(marker);
-  ok(parts.every(x=>Buffer.byteLength(x)<=20000),'HTML chunks must each be <= 20000 bytes (split HTML at injection marker)');
+  const prefix=Buffer.from(parts[0]); const suffix=Buffer.from(parts[1]);
+  const packed=Buffer.alloc(2+prefix.length+suffix.length);packed.writeUInt16BE(prefix.length,0);prefix.copy(packed,2);suffix.copy(packed,2+prefix.length);
+  ok(packed.length<=20000,'HTML template must be <= 19998 bytes; optimize before uploading');
   // Do not minify potentially executable JavaScript by regular-expression rewriting. Preserve bytes exactly.
-  media={sha256:sha(Buffer.from(raw)),chunks:parts.map(x=>Buffer.byteLength(x)),injectionMarker:marker};
+  media={sha256:sha(Buffer.from(raw)),chunks:[packed.length],prefixBytes:prefix.length,suffixBytes:suffix.length,injectionMarker:marker};
   await mkdir(join(dest,'media'),{recursive:true});
-  for(let i=0;i<2;i++)await writeFile(join(dest,'media',`chunk${i}.bin`),Buffer.from(parts[i]));
+  await writeFile(join(dest,'media','chunk0.bin'),packed);
  }
- const outputs={ [`${id}Data.sol`]:makeData(s,id),[`${id}Renderer.sol`]:makeRenderer(s,id,!!media),[`${id}.sol`]:makeCollection(s,id)};
+ const dataFiles=makeData(s,id);
+ const outputs={ ...dataFiles.outputs,[`${id}Renderer.sol`]:makeRenderer(s,id,!!media),[`${id}.sol`]:makeCollection(s,id)};
  await mkdir(join(dest,'contracts'),{recursive:true});const base=join(repo,'assets/contracts/v6/MintbayCoreERC721A.sol');await copyFile(base,join(dest,'contracts/MintbayCoreERC721A.sol'));
  const hashes={};for(const [f,content] of Object.entries(outputs)){await writeFile(join(dest,f),content);hashes[f]=sha(content);}hashes['contracts/MintbayCoreERC721A.sol']=sha(await readFile(base));
- const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:6,media,mode:'external-renderer',note:'V6 experimental; V5 input mapping accepted temporarily. No deployment before full local EVM testing.'};
+ const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:6,media,dataShardCount:dataFiles.shardCount,mode:'sharded-data-external-renderer',note:'V6 experimental; V5 input mapping accepted temporarily. No deployment before full local EVM testing.'};
  await writeFile(join(dest,'generation.json'),JSON.stringify(record,null,2)+'\n');
  console.log(JSON.stringify({status:'V6_GENERATED_UNVERIFIED',directory:dest,...record},null,2));
 }
