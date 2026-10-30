@@ -22,6 +22,15 @@ V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions,
 9. Every component must satisfy EIP-170 runtime 24,576 bytes and EIP-3860 initcode 49,152 bytes; do not treat a compiler pass as an EVM test.
 10. Ethereum 1, Unichain 130, Polygon 137, Robinhood 4663, Base 8453 and Arbitrum 42161 are the configured target chains; verify chain-specific contracts before deployment.
 
+## Renderer upgrades, animations and interactive HTML
+
+When asked to change NFT artwork, attach animation, build a playable on-chain HTML page, or upgrade a deployed Mintbay renderer, read [RENDERERS-AND-HTML.md](references/RENDERERS-AND-HTML.md) before proposing transactions.
+
+- **Standard V6 generator:** `setRenderer(address)` and `lockRenderer()` exist in generated collections; the owner can replace the renderer only while `isRendererLocked() == false`. The generated collection calls the renderer's `tokenURI(uint256,bytes32)` and `fingerprint(bytes32)`. Verify both and preserve the original token seeds and traits. `lockRenderer()` is irreversible.
+- **HTML:** the standard `--html` media path accepts a single self-contained 20 KB chunk (including two prefix bytes) with exactly one `/* MINTBAY_NFT_INJECTION */` marker. It injects `id`, `seed`, `chosenTraits`; it does not inject canonical gameplay armour or token-bound wallet access by default.
+- **Advanced custom renderers:** ArcadeMachine's multi-chunk HTML, 8x8 boss, paid $OCH game and ERC-6551 wallets were implemented with additional custom contracts. Do not claim the stock generator or skill automatically produces this system.
+- **Safe upgrade:** inspect the live collection and renderer; prepare the replacement source and component pointers; verify all bytecode/chunk boundaries; decode representative tokenURI samples; run the HTML in a browser, including free play and wallet-bridge checks if applicable; then request explicit approval before `setRenderer`. Never silently lock the renderer.
+
 ## ERC-6551
 
 Canonical registry `0x000000006551c19487814612e58FE06813775758` and account implementation `0x62DF5D2C60b9B434D017cf90765c4a96e0d486a5` are **candidates for Robinhood 4663**, not a completed universal-chain security review. Verify deployed code, actual signature/execute behavior, chain ownership and deterministic salt for each supported chain. Never require eager account deployment on mint; NFT core needs no ERC-6551 hooks for standard deterministic accounts.

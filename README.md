@@ -30,3 +30,7 @@ Run `node scripts/test-generator.mjs` to check both static and media code-genera
 ## V6 Studio / Worker compatibility (October 2026)
 
 New Studio uploads must contain `mintbayV6: { schemaVersion: 6, ... }` and `deployment.baseContract: "assets/contracts/v6/MintbayCoreERC721A.sol"`. Old V5.1 build records remain read-only. The prep tool writes an offline CREATE2 ordered `deployment-manifest.json` and role-specific calldata files; no broadcasting is implemented. This is still **not live deployment ready** until local EVM mint/metadata tests and runtime code checks pass.
+
+## Renderer upgrades, animation and playable NFTs
+
+Generated V6 collections include owner-controlled `setRenderer(address)` and irreversible `lockRenderer()`; inspect `isRendererLocked()` before any update. The optional `--html` path provides a self-contained on-chain `animation_url` for small HTML pages or games (single 20 KB media chunk). SVG media can also be animated using self-contained SVG features, subject to marketplace support. Large multi-chunk interactive projects such as ArcadeMachine require custom, separately verified renderer/game contracts. See [Renderer and HTML workflow](references/RENDERERS-AND-HTML.md).
