@@ -3,6 +3,10 @@ name: mintbay-agent
 description: Mintbay V6 on-chain NFT deployment research, source generation, preflight compilation, Bankr transaction orchestration, NFT verification, ERC-6551 accounts, and Mintbay artwork editorial writing. Use for Mintbay collection builds, animations, on-chain mini-games, mint deployments and NFT analysis.
 ---
 
+# PNG renderer development gate (November 2026)
+
+When asked to migrate Mintbay's artwork renderer, read [PNG-RENDERER-MIGRATION.md](references/PNG-RENDERER-MIGRATION.md) first. The intended final architecture is **PNG-only**, not a lasting V1 fallback; however, **the production generator still emits the V6 pixel-SVG renderer** until a separately tested PNG implementation passes local EVM and metadata parity tests. Run `node scripts/test-png-verifier.mjs` and audit the actual immutable build with `node scripts/verify-png-build.mjs BUILD_ID`. Do not present the audited PNG files as an already-deployed PNG renderer. Preserve `discovery.ts`, the collection CREATE2 salt and the creator approval/broadcast gates.
+
 # Mintbay V6 - one repository, one active deployment architecture
 
 V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
@@ -109,3 +113,7 @@ New builds use `config.mintbayV6` with `schemaVersion: 6`, retaining the previou
 `prepare-deploy.mjs` now emits `steps[]` with CREATE2 predicted addresses, constructor arguments, exact unsigned calldata and dependencies. The sole supported CREATE2 factory is `0x4e59b44847b379578588920ca78fbf26c0b4956c`. Bankr may broadcast these outputs only after the creator explicitly approves live deployment. Before submission, verify the target chain and CREATE2 factory code, and ensure each constructor is tied to the verified dependency address; for already deployed components, compare runtime code and immutable configuration rather than accepting nonempty code alone. Address existence alone is insufficient to resume any partially deployed collection. The Net integration records final NFT cores only, not helper data contracts.
 
 Strongly recommended before any live collection launch: locally mint and decode `tokenURI`, validate shard boundaries and HTML reconstruction, and exercise configured mint features and ERC-6551 ownership. If the creator elects to deploy before these tests, explicitly mark them unverified; never skip mandatory chain/factory verification, transaction approval, or checking already-deployed dependencies. ArcadeGamingVault is external to Mintbay V6 and must not appear in the V6 collection deployment manifest unless separately and explicitly requested.
+
+## PNG artwork shard preflight (unsigned)
+
+For immutable builds with `files.pngAssets`, run `node scripts/pack-png-shards.mjs BUILD_ID --out ./png-shards` and review `references/PNG-SHARD-LIMITS.md`. A bytecode shard may hold PNGs across multiple layers; a single PNG may span multiple shards. Verify hashes and reconstruction. This preflight is **not** a renderer deployment plan: do not deploy generated shards to mainnet until the new renderer and CREATE2 address wiring have passed local EVM tests. Never modify discovery.
