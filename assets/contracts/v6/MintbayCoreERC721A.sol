@@ -8,11 +8,6 @@ import { LibString } from "solady/src/utils/LibString.sol";
 import { ReentrancyGuard } from "solady/src/utils/ReentrancyGuard.sol";
 
 interface INet {
-    function sendMessage(
-        string calldata text,
-        string calldata topic,
-        bytes calldata data
-    ) external;
     function sendMessageViaApp(
         address sender,
         string calldata text,
@@ -82,7 +77,6 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     string internal constant TOPIC_MINT = "mint";
     string internal constant TOPIC_TRANSFER = "transfer";
     string internal constant TOPIC_BURN = "burn";
-    string internal constant TOPIC_COLLECTION = "nft-collection";
 
     // --- Immutable Mintbay Protocol Constants ---
     address public constant PLATFORM_FEE_RECIPIENT = 0xcdb9DB46d6C251A334EfF599012011Dc63ff5717;
@@ -193,11 +187,8 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
             _transferOwnership(initialOwner_);
         }
 
-        // Net collection registration convention: text must be the raw name.
-        // Keep the registration best-effort, as with other Net hooks.
-        if (netEnabled) {
-            try NET.sendMessage(name_, TOPIC_COLLECTION, abi.encodePacked(tx.origin)) {} catch {}
-        }
+        // Announce the collection via an external Net post after deployment.
+        // Never require Net availability during contract construction.
     }
 
     // --- ERC165 Disambiguation ---
@@ -479,7 +470,7 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         _burn(tokenId, true);
     }
 
-    // --- Net Protocol Hooks Chained with Limit Break ERC721AC ---
+    // --- Best-effort Net Protocol Hook (one write per ERC721A transfer batch) ---
     function _afterTokenTransfers(
         address from,
         address to,
@@ -487,38 +478,18 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         uint256 quantity
     ) internal virtual override {
         super._afterTokenTransfers(from, to, startTokenId, quantity);
-        if (!netEnabled) return;
+        // Local chains without Net must remain fully functional.
+        if (!netEnabled || address(NET).code.length == 0 || quantity == 0) return;
 
-        if (from == address(0)) {
-            for (uint256 i = 0; i < quantity; i++) {
-                uint256 tId = startTokenId + i;
-                try NET.sendMessageViaApp(
-                    to,
-                    string.concat("Minted #", tId.toString()),
-                    TOPIC_MINT,
-                    abi.encode(to, tId, _tokenToSeed[tId])
-                ) {} catch {}
-            }
-        } else if (to == address(0)) {
-            for (uint256 i = 0; i < quantity; i++) {
-                uint256 tId = startTokenId + i;
-                try NET.sendMessageViaApp(
-                    from,
-                    string.concat("Burned #", tId.toString()),
-                    TOPIC_BURN,
-                    abi.encode(from, tId)
-                ) {} catch {}
-            }
-        } else {
-            for (uint256 i = 0; i < quantity; i++) {
-                uint256 tId = startTokenId + i;
-                try NET.sendMessageViaApp(
-                    from,
-                    string.concat("Transferred #", tId.toString()),
-                    TOPIC_TRANSFER,
-                    abi.encode(from, to, tId)
-                ) {} catch {}
-            }
-        }
+        bool isMint = from == address(0);
+        bool isBurn = to == address(0);
+        string memory topic = isMint ? TOPIC_MINT : (isBurn ? TOPIC_BURN : TOPIC_TRANSFER);
+        string memory verb = isMint ? "Minted #" : (isBurn ? "Burned #" : "Transferred #");
+        string memory message = quantity == 1
+            ? string.concat(verb, startTokenId.toString())
+            : string.concat(verb, startTokenId.toString(), "-#", (startTokenId + quantity - 1).toString());
+        address actor = isMint ? to : from;
+        // An indexing failure must never revert NFT mint, burn, or transfer.
+        try NET.sendMessageViaApp(actor, message, topic, "") {} catch {}
     }
 }
