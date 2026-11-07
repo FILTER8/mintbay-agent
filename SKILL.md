@@ -3,9 +3,9 @@ name: mintbay-agent
 description: Mintbay V6 on-chain NFT deployment research, source generation, preflight compilation, Bankr transaction orchestration, NFT verification, ERC-6551 accounts, and Mintbay artwork editorial writing. Use for Mintbay collection builds, animations, on-chain mini-games, mint deployments and NFT analysis.
 ---
 
-# PNG renderer development gate (November 2026)
+# PNG renderer proof-of-concept gate (November 2026)
 
-When asked to migrate Mintbay's artwork renderer, read [PNG-RENDERER-MIGRATION.md](references/PNG-RENDERER-MIGRATION.md) first. The intended final architecture is **PNG-only**, not a lasting V1 fallback; however, **the production generator still emits the V6 pixel-SVG renderer** until a separately tested PNG implementation passes local EVM and metadata parity tests. Run `node scripts/test-png-verifier.mjs` and audit the actual immutable build with `node scripts/verify-png-build.mjs BUILD_ID`. Do not present the audited PNG files as an already-deployed PNG renderer. Preserve `discovery.ts`, the collection CREATE2 salt and the creator approval/broadcast gates.
+The desired future architecture is packed immutable PNG bytecode shards + SVG `<image>` elements. Read [PNG-RENDERER-POC.md](references/PNG-RENDERER-POC.md) and [PNG-SHARD-LIMITS.md](references/PNG-SHARD-LIMITS.md). The POC renderer and local SVG reconstruction script are **experimental**, and the existing V6 generator/deployer **still use the old pixel-rectangle renderer**. Do not deploy the POC as a Mintbay collection or claim it passed Solidity compilation, EVM gas, metadata, or marketplace tests. The core collection renderer interface, trait chooser, feature parity and Net Protocol hooks must be preserved when integrating later. Do not alter discovery.
 
 # Mintbay V6 - one repository, one active deployment architecture
 

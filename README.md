@@ -35,18 +35,14 @@ New Studio uploads must contain `mintbayV6: { schemaVersion: 6, ... }` and `depl
 
 Generated V6 collections include owner-controlled `setRenderer(address)` and irreversible `lockRenderer()`; inspect `isRendererLocked()` before any update. The optional `--html` path provides a self-contained on-chain `animation_url` for small HTML pages or games (single 20 KB media chunk). SVG media can also be animated using self-contained SVG features, subject to marketplace support. Large multi-chunk interactive projects such as ArcadeMachine require custom, separately verified renderer/game contracts. See [Renderer and HTML workflow](references/RENDERERS-AND-HTML.md).
 
-## PNG artwork migration — proof first (November 2026)
+## PNG artwork reader & renderer proof (November 2026)
 
-Studio/Worker now publish `png-manifest.json` and compressed PNG trait assets. The agent's current V6 generator **does not yet consume those assets**; it still uses indexed pixels and SVG rectangles. The target is to replace this renderer, not keep a permanent V1 fallback. Before asking Bankr to deploy it, run the asset audit:
+The new Studio PNG encoder has passed Bankr's immutable-build verification for build `8c117dfd-ebcd-48e4-aa05-0b63a64acce4` (25 traits, 8 layers, 3,437 PNG bytes and zero source pixel mismatches). Our experimental `assets/contracts/png-poc/MintbayPackedPngRendererPOC.sol` adopts Indelible's immutable-code-backed Base64 composition principles but uses `<image>` instead of CSS background layering. It supports PNG pieces spanning shards and renders SVG/JSON for explicit trait ID arrays.
 
 ```bash
-node scripts/test-png-verifier.mjs
-node scripts/verify-png-build.mjs e599e303-bd44-464d-85ab-fc3c21144b6c --report png-audit.json
-# Or: node scripts/verify-png-build.mjs --local --dir ./downloaded-build
+node scripts/verify-png-build.mjs 8c117dfd-ebcd-48e4-aa05-0b63a64acce4
+node scripts/pack-png-shards.mjs 8c117dfd-ebcd-48e4-aa05-0b63a64acce4 --out ./png-shards
+node scripts/test-png-renderer-poc.mjs ./png-shards ./png-shards/renderer-poc
 ```
 
-See [PNG renderer migration and acceptance gates](references/PNG-RENDERER-MIGRATION.md). **No production generator or CREATE2 deployment behavior has changed in this audit-only repository update.** Discovery is separate and must remain untouched.
-
-## PNG bytecode storage preflight (new)
-
-Run `node scripts/pack-png-shards.mjs BUILD_ID --out ./png-shards` to independently validate PNG hashes, bytecode shards and all 24 KiB / 48 KiB boundaries. See `references/PNG-SHARD-LIMITS.md`. This step does not change the V6 production renderer or broadcast transactions.
+**Not production-ready:** Solidity compilation and EVM gas tests have not been executed here. This POC does not yet integrate `choose(seed)`, exclusions, fingerprinting, full metadata or the NFT core renderer interface; production `generate-collection.mjs` and `prepare-deploy.mjs` are unchanged. No mainnet deployment. See [PNG renderer POC and EVM checklist](references/PNG-RENDERER-POC.md) and [shard limits](references/PNG-SHARD-LIMITS.md).
