@@ -3,6 +3,10 @@ name: mintbay-agent
 description: Mintbay V6 on-chain NFT deployment research, source generation, preflight compilation, Bankr transaction orchestration, NFT verification, ERC-6551 accounts, and Mintbay artwork editorial writing. Use for Mintbay collection builds, animations, on-chain mini-games, mint deployments and NFT analysis.
 ---
 
+# V7 NFT core extensions (source-level integration; NOT yet EVM approved)
+
+Mintbay now includes **optional non-transferable mint-only NFTs**, **batch Holder Claim**, **ERC-6551 claim-to-TBA**, and a **one-way post-deployment collection ownership transfer lock**. These options are implemented in the core contract `assets/contracts/v6/MintbayCoreERC721A.sol` and are independent of PNG rendering. The V6 Studio build schema is retained; use `--v7-options ./v7-options.json` for explicitly reviewed deployment feature choices. Read [V7-CORE-OPTIONS.md](references/V7-CORE-OPTIONS.md) *before* generating deployment calldata. **New core features are not EVM-tested or approved for live broadcast yet.** Do not deploy until Bankr provides actual compilation, EVM transaction receipts, mint/claim, negative security and gas results and the creator approves the deployment.
+
 # Packed PNG renderer integration (November 2026)
 
 Mintbay Studio V6 schema builds with `files.pngAssets` use the **packed PNG shard renderer** as the only newly generated artwork renderer. The generator now verifies *all* PNG hashes and exact source pixel parity, packs bytes into immutable code shards, preserves the V6 trait selector and fingerprint logic, and generates SVG `<image>` layers via `EXTCODECOPY`. Read [PNG-SHARD-LIMITS.md](references/PNG-SHARD-LIMITS.md) for the 24,576-byte runtime EIP-170 limit. **Do not use or deploy the old pixel-rectangle generator for new builds.** The separate POC in `assets/contracts/png-poc` is historical reference only, not an NFT deployment component.
@@ -17,13 +21,13 @@ V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions,
 
 ## PNG deployment preparation commands (unsigned only)
 
-Run `node scripts/verify-png-build.mjs BUILD_ID`, then `node scripts/test-generator.mjs`, then `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`. Use the optional `--html ./game.html` only with the marker documented below. Read `deployment-manifest.json` for ordered `pngShardN`, `dataShardN`, `data`, optional `chunk0`, `renderer`, `collection` steps and `*-create2-calldata.txt` artifacts. Each CREATE2 address includes constructor arguments in the initcode hash. Bankr must use file-based contract calldata, never inline >512-byte payloads. The data-shard code contains *only selection data*, not legacy raw palette pixel arrays. Only the original V6 NFT core contract remains unchanged.
+Run `node scripts/verify-png-build.mjs BUILD_ID`, then `node scripts/test-generator.mjs`, then `node scripts/prepare-deploy.mjs BUILD_ID --v7-options ./v7-options.json --out ./generated/BUILD_ID` (omit the options file to keep all V7 switches off). Use the optional `--html ./game.html` only with the marker documented below. Read `deployment-manifest.json` for ordered `pngShardN`, `dataShardN`, `data`, optional `chunk0`, `renderer`, `collection` steps and `*-create2-calldata.txt` artifacts. Each CREATE2 address includes constructor arguments in the initcode hash. Bankr must use file-based contract calldata, never inline >512-byte payloads. The data-shard code contains *only selection data*, not legacy raw palette pixel arrays. Only the original V6 NFT core contract remains unchanged.
 
 ## Single workflow
 
 1. Resolve the immutable Mintbay build manifest and verify all file SHA256 hashes, artwork parity, chain ID, creator ownership, and chosen features.
 2. Install dependencies: `npm install --prefix assets/contracts/v6 --no-audit --no-fund`.
-3. Run `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`.
+3. Run `node scripts/prepare-deploy.mjs BUILD_ID --v7-options ./v7-options.json --out ./generated/BUILD_ID` (omit the options file to keep all V7 switches off).
 4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Expected manifest status is `PNG_UNSIGNED_DEPLOYMENT_PREPARED`. It is NOT evidence of successful local EVM integration; do not broadcast before the safety gate above is satisfied. The preparer never sends transactions.
 5. For HTML games: use `node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BUILD_ID`. The HTML must include exactly one `/* MINTBAY_NFT_INJECTION */` marker within a `<script>` before any code that reads `window.__MINTBAY_NFT__`. The entire UTF-8 HTML template including a 2-byte prefix must fit in one 20,000-byte immutable data contract. No HTML splitting. Do not treat generated media artifacts as already deployed or tested; obtain approval before submitting each live transaction.
 6. If a feature is selected, preserve it. Do not remove Holder Claim, Burn & Claim, One Shot, supply reduction, royalty enforcement, creator mint or Net hooks merely to satisfy bytecode limits.

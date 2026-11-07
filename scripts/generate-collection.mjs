@@ -278,10 +278,20 @@ function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;c
         isRendererLocked = true;
         emit RendererLocked();
     }
-    constructor(address renderer_) MintbayCoreERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n        require(renderer_.code.length > 0,"Renderer missing");\n        renderer=${id}Renderer(renderer_);\n        if (${!!s.lockRendererImmediately}) { isRendererLocked = true; emit RendererLocked(); }\n${lines}\n    }\n${uniqueness}    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
+    constructor(address renderer_) MintbayCoreERC721A(\n        unicode${sol(co.name)},unicode${sol(co.symbol)},${money(co.mintPriceEth)},${co.maxSupply},${co.maxMintsPerWallet},${co.creatorReserve},${v.holderClaim.claimsPerToken},\n        ${!!v.holderClaim.enabled},${!!v.burnAndClaim.enabled},${!!v.oneShot.enabled},${!!v.supplyReduction.enabled},${!!v.ownershipTransfer.enabled && !s.v7.lockOwnershipTransfersImmediately},${s.v7.transfersLocked},${s.v7.tokenBoundClaimEnabled},\n        ${checksumAddress(configAddress(s))},${checksumAddress(co.payoutRecipient)},${checksumAddress(royalty.enabled?royalty.recipient:co.payoutRecipient)},${royalty.enabled?royalty.bps:0}\n    ) {\n        require(renderer_.code.length > 0,"Renderer missing");\n        renderer=${id}Renderer(renderer_);\n        if (${!!s.lockRendererImmediately}) { isRendererLocked = true; emit RendererLocked(); }\n${lines}\n    }\n${uniqueness}    function tokenURI(uint256 tokenId) public view override returns(string memory){require(_exists(tokenId),"Nonexistent token");return renderer.tokenURI(tokenId,_tokenToSeed[tokenId]);}\n}\n`;
 }
 function configAddress(s){return s.expectedDeployer;}
-async function main(){const all=await load();const s=check(all);s.expectedDeployer=all.config.deployment.expectedDeployer;ok(all.config.lockRendererImmediately === undefined || typeof all.config.lockRendererImmediately === 'boolean','lockRendererImmediately must be a boolean');s.lockRendererImmediately = all.config.lockRendererImmediately === true;
+async function main(){const all=await load();const s=check(all);
+ const v7Path=pick('--v7-options');
+ const v7=v7Path?await readJson(resolve(v7Path)):(all.config.mintbayV7||{});
+ ok(v7 && typeof v7==='object' && !Array.isArray(v7),'Invalid V7 options');
+ for(const key of Object.keys(v7))ok(['transfersLocked','tokenBoundClaimEnabled','lockOwnershipTransfersImmediately'].includes(key),'Unknown V7 option '+key);
+ for(const value of Object.values(v7))ok(typeof value==='boolean','V7 options must be booleans');
+ s.v7={transfersLocked:v7.transfersLocked===true,tokenBoundClaimEnabled:v7.tokenBoundClaimEnabled===true,lockOwnershipTransfersImmediately:v7.lockOwnershipTransfersImmediately===true};
+ if(s.v7.transfersLocked){ok(!s.v.burnAndClaim?.enabled && !s.v.oneShot?.enabled,'Locked collection cannot enable burn and claim or one-shot');ok(!s.v.royalties?.enabled && s.co.royaltyBps===0,'Locked collection must have zero royalties');}
+ if(s.v7.tokenBoundClaimEnabled)ok(s.v.holderClaim?.enabled,'TBA claims require holder claim');
+ s.v7ConfigHash=sha(Buffer.from(JSON.stringify(s.v7)));
+ s.expectedDeployer=all.config.deployment.expectedDeployer;ok(all.config.lockRendererImmediately === undefined || typeof all.config.lockRendererImmediately === 'boolean','lockRendererImmediately must be a boolean');s.lockRendererImmediately = all.config.lockRendererImmediately === true;
  const build=all.manifest.id;const id=toPascalCase(s.co.name);ok(nameSafe(id),'Bad identifier');
  const htmlFile=pick('--html');
  let media=null;
@@ -316,7 +326,7 @@ async function main(){const all=await load();const s=check(all);s.expectedDeploy
  const outputs={ ...dataFiles.outputs,[`${id}Renderer.sol`]:makeRenderer(s,id,!!media),[`${id}.sol`]:makeCollection(s,id)};
  await mkdir(join(dest,'contracts'),{recursive:true});const base=join(repo,'assets/contracts/v6/MintbayCoreERC721A.sol');await copyFile(base,join(dest,'contracts/MintbayCoreERC721A.sol'));
  const hashes={};for(const [f,content] of Object.entries(outputs)){await writeFile(join(dest,f),content);hashes[f]=sha(content);}hashes['contracts/MintbayCoreERC721A.sol']=sha(await readFile(base));
- const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:7,media,dataShardCount:dataFiles.shardCount,pngShardCount:png.shardCount,pngLayout:'png/png-shards.json',pngPayloadBytes:png.totalPngBytes,mode:'packed-png-external-renderer',note:'Mintbay V6 schema, full local EVM tests pending. No broadcast.'};
+ const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:7,v7Features:s.v7,v7OptionsSha256:s.v7ConfigHash,media,dataShardCount:dataFiles.shardCount,pngShardCount:png.shardCount,pngLayout:'png/png-shards.json',pngPayloadBytes:png.totalPngBytes,mode:'packed-png-external-renderer',note:'Mintbay V6 schema, full local EVM tests pending. No broadcast.'};
  await writeFile(join(dest,'generation.json'),JSON.stringify(record,null,2)+'\n');
  console.log(JSON.stringify({status:'PNG_GENERATED_UNVERIFIED',directory:dest,...record},null,2));
 }

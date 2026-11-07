@@ -100,3 +100,36 @@ for(const count of [3,260]){
  if(!collection.includes('if (true) { isRendererLocked = true; emit RendererLocked(); }'))throw Error('Explicit immediate renderer seal missing');
  console.log('PASS optional immediate renderer seal');
 }
+
+// V7 explicit deployment options: verify gating and constructor values without modifying Studio V6 config.
+{
+ const dir=lastFixtureDir;
+ const cfg=JSON.parse(await readFile(join(dir,'config.json'),'utf8'));
+ cfg.mintbayV6.burnAndClaim={enabled:false};
+ cfg.mintbayV6.oneShot={enabled:false};
+ cfg.collection.royaltyBps=0;
+ cfg.mintbayV6.royalties={enabled:false,mode:'erc2981',bps:0,recipient:cfg.collection.payoutRecipient};
+ const raw=JSON.stringify(cfg);
+ await writeFile(join(dir,'config.json'),raw);
+ const mf=JSON.parse(await readFile(join(dir,'manifest.json'),'utf8'));
+ mf.files.config.sha256=hash(raw);
+ await writeFile(join(dir,'manifest.json'),JSON.stringify(mf));
+ const opts=join(dir,'v7.json');
+ await writeFile(opts,JSON.stringify({transfersLocked:true,tokenBoundClaimEnabled:true,lockOwnershipTransfersImmediately:true}));
+ const out=await mkdtemp(join(tmpdir(),'mb-v7-'));
+ execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',out,'--v7-options',opts]);
+ const generated=await readFile(join(out,'TestA.sol'),'utf8');
+ if(!generated.includes('false,true,true,') || !generated.includes('MintbayCoreERC721A('))throw Error('V7 transfer-lock constructor wiring missing');
+ const record=JSON.parse(await readFile(join(out,'generation.json'),'utf8'));
+ if(record.v7Features.transfersLocked!==true || record.v7Features.tokenBoundClaimEnabled!==true || record.v7Features.lockOwnershipTransfersImmediately!==true)throw Error('V7 options not committed in generation record');
+ const core=await readFile(join(out,'contracts/MintbayCoreERC721A.sol'),'utf8');
+ for(const method of ['batchHolderClaim(', 'batchClaimToTBA(', 'claimToTBA(', 'lockOwnershipTransfers(', '_beforeTokenTransfers('])if(!core.includes(method))throw Error('Missing V7 core method '+method);
+ console.log('PASS V7 constructor flags and core methods');
+ // An irreversible transfer lock must not coexist with burn-and-claim or One Shot.
+ cfg.mintbayV6.oneShot.enabled=true;
+ const bad=JSON.stringify(cfg);await writeFile(join(dir,'config.json'),bad);
+ mf.files.config.sha256=hash(bad);await writeFile(join(dir,'manifest.json'),JSON.stringify(mf));
+ try{execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',join(dir,'bad'),'--v7-options',opts],{stdio:'pipe'});throw Error('Non-transferable collection accepted oneShot');}
+ catch(e){if(e.message==='Non-transferable collection accepted oneShot')throw e;if(!String(e.stderr).includes('Locked collection cannot enable'))throw Error('Unexpected V7 rejection '+e.stderr);}
+ console.log('PASS V7 rejects incompatible burn/remint features');
+}

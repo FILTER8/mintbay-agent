@@ -25,6 +25,11 @@ interface IERC721 {
     function ownerOf(uint256 tokenId) external view returns (address);
 }
 
+interface IERC6551RegistryMintbay {
+    function account(address implementation, bytes32 salt, uint256 chainId, address tokenContract, uint256 tokenId) external view returns (address);
+    function createAccount(address implementation, bytes32 salt, uint256 chainId, address tokenContract, uint256 tokenId) external returns (address);
+}
+
 interface IBurnableMintbay {
     function burn(uint256 tokenId) external;
 }
@@ -51,6 +56,10 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     error OneShotDisabled();
     error SupplyReductionDisabled();
     error OwnershipTransferDisabled();
+    error NonTransferable();
+    error InvalidBatch();
+    error TokenBoundClaimDisabled();
+    error InvalidTokenBoundAccount();
 
     // --- Events ---
     event SupplyReduced(uint256 newMaxSupply);
@@ -61,6 +70,9 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     event BurnClaimCollectionSet(address indexed sourceCollection, bool approved);
     event TokenClaimed(address indexed sourceContract, uint256 indexed sourceTokenId, uint256 indexed mintedTokenId);
     event BurnAndClaim(address indexed sourceCollection, uint256 indexed sourceTokenId, uint256 indexed mintedTokenId);
+    event OwnershipTransfersLocked();
+    event ClaimTBAConfigured(address indexed sourceCollection, address indexed registry, address indexed implementation, bytes32 salt, uint256 chainId);
+    event TokenClaimedToTBA(address indexed sourceCollection, uint256 indexed sourceTokenId, uint256 indexed mintedTokenId, address account);
     event OneShotReminted(uint256 indexed burnedTokenId, uint256 indexed newTokenId, uint256 indexed lineageRoot);
 
     // --- Net Protocol Constants ---
@@ -107,7 +119,9 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     bool public immutable burnClaimEnabled;
     bool public immutable oneShotEnabled;
     bool public immutable supplyReductionEnabled;
-    bool public immutable ownershipTransferEnabled;
+    bool public ownershipTransferEnabled; // May be disabled permanently after deployment.
+    bool public immutable transfersLocked;
+    bool public immutable tokenBoundClaimEnabled;
 
     // --- Holder Claim Configuration & State ---
     struct ApprovedClaim {
@@ -117,6 +131,14 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     mapping(address => ApprovedClaim) public approvedClaimCollections;
     uint256 public immutable claimsPerToken;
     mapping(bytes32 => uint256) public claimsUsed;
+    struct ClaimTBAConfig {
+        address registry;
+        address implementation;
+        bytes32 salt;
+        uint256 chainId;
+    }
+    mapping(address => ClaimTBAConfig) public claimTBAConfigs;
+    uint256 public constant MAX_BATCH_CLAIMS = 50;
 
     // --- Burn & Claim Configuration & State ---
     mapping(address => bool) public approvedBurnClaimCollections;
@@ -139,6 +161,8 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         bool oneShotEnabled_,
         bool supplyReductionEnabled_,
         bool ownershipTransferEnabled_,
+        bool transfersLocked_,
+        bool tokenBoundClaimEnabled_,
         address initialOwner_,
         address payoutRecipient_,
         address royaltyReceiver_,
@@ -159,6 +183,9 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         oneShotEnabled = oneShotEnabled_;
         supplyReductionEnabled = supplyReductionEnabled_;
         ownershipTransferEnabled = ownershipTransferEnabled_;
+        transfersLocked = transfersLocked_;
+        tokenBoundClaimEnabled = tokenBoundClaimEnabled_;
+        if (transfersLocked_ && (burnClaimEnabled_ || oneShotEnabled_ || royaltyFeeNumerator_ != 0)) revert NonTransferable();
 
         payoutRecipient = payoutRecipient_;
 
@@ -186,10 +213,12 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
 
     // --- Royalty Configuration (Owner-Controlled) ---
     function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
+        if (transfersLocked) revert NonTransferable();
         _setDefaultRoyalty(receiver, feeNumerator);
     }
 
     function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) external onlyOwner {
+        if (transfersLocked) revert NonTransferable();
         _setTokenRoyalty(tokenId, receiver, feeNumerator);
     }
 
@@ -202,6 +231,19 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
     function renounceOwnership() public virtual override onlyOwner {
         if (!ownershipTransferEnabled) revert OwnershipTransferDisabled();
         super.renounceOwnership();
+    }
+
+    /// @notice Irreversible one-way collection ownership transfer lock.
+    function lockOwnershipTransfers() external onlyOwner {
+        if (!ownershipTransferEnabled) revert OwnershipTransferDisabled();
+        ownershipTransferEnabled = false;
+        emit OwnershipTransfersLocked();
+    }
+
+    /// @notice Allow minting from address(0) but reject all transfers and burns.
+    function _beforeTokenTransfers(address from, address to, uint256 startTokenId, uint256 quantity) internal virtual override {
+        if (transfersLocked && from != address(0)) revert NonTransferable();
+        super._beforeTokenTransfers(from, to, startTokenId, quantity);
     }
 
     // --- Admin Configuration ---
@@ -220,7 +262,18 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         emit ApprovedClaimCollectionSet(collection, approved, priceEth);
     }
 
+    /// @notice Each approved source can select its canonical ERC-6551 account implementation.
+    /// @dev For safety, selecting a registry and implementation is an explicit creator action.
+    function setClaimTBAConfig(address sourceCollection, address registry, address implementation, bytes32 salt, uint256 chainId) external onlyOwner {
+        if (!holderClaimEnabled || !tokenBoundClaimEnabled) revert TokenBoundClaimDisabled();
+        if (!approvedClaimCollections[sourceCollection].approved) revert UnauthorizedCollection();
+        if (registry.code.length == 0 || implementation.code.length == 0 || chainId != block.chainid) revert InvalidTokenBoundAccount();
+        claimTBAConfigs[sourceCollection] = ClaimTBAConfig(registry, implementation, salt, chainId);
+        emit ClaimTBAConfigured(sourceCollection, registry, implementation, salt, chainId);
+    }
+
     function setBurnClaimCollection(address sourceCollection, bool approved) external onlyOwner {
+        if (transfersLocked) revert NonTransferable();
         if (!burnClaimEnabled) revert BurnClaimDisabled();
         approvedBurnClaimCollections[sourceCollection] = approved;
         emit BurnClaimCollectionSet(sourceCollection, approved);
@@ -269,6 +322,10 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
 
     // --- Internal Minting & Seeding ---
     function _mintSeeded(address to, uint256 quantity) internal returns (uint256 startTokenId) {
+        return _mintSeededTo(to, quantity, false);
+    }
+
+    function _mintSeededTo(address to, uint256 quantity, bool safe) internal returns (uint256 startTokenId) {
         if (_totalMinted() + quantity > maxSupply) revert MaxSupplyExceeded();
 
         startTokenId = _nextTokenId();
@@ -283,7 +340,8 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
                 )
             ));
         }
-        _mint(to, quantity);
+        if (safe) _safeMint(to, quantity);
+        else _mint(to, quantity);
     }
 
     // --- Public Mint ---
@@ -310,25 +368,77 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
         _mintSeeded(to, quantity);
     }
 
-    // --- Holder Claim ---
-    function holderClaim(address sourceContract, uint256 sourceTokenId) external payable nonReentrant {
+    // --- Holder Claim (one claim allowance shared across normal and TBA destinations) ---
+    function _checkHolderClaim(address sourceContract, uint256 sourceTokenId) internal view returns (uint256 cost) {
         if (!holderClaimEnabled) revert HolderClaimDisabled();
-        ApprovedClaim memory claimConfig = approvedClaimCollections[sourceContract];
-        if (!claimConfig.approved) revert UnauthorizedCollection();
+        ApprovedClaim memory setting = approvedClaimCollections[sourceContract];
+        if (!setting.approved) revert UnauthorizedCollection();
         if (IERC721(sourceContract).ownerOf(sourceTokenId) != msg.sender) revert NotTokenOwner();
-
         bytes32 claimKey = keccak256(abi.encode(sourceContract, sourceTokenId));
         if (claimsUsed[claimKey] >= claimsPerToken) revert AlreadyClaimed();
-        if (msg.value != claimConfig.priceEth) revert IncorrectPayment();
+        return setting.priceEth;
+    }
 
+    function _claimOne(address sourceContract, uint256 sourceTokenId, bool toTBA) internal {
+        bytes32 claimKey = keccak256(abi.encode(sourceContract, sourceTokenId));
+        if (claimsUsed[claimKey] >= claimsPerToken) revert AlreadyClaimed();
         claimsUsed[claimKey]++;
+        address recipient = msg.sender;
+        if (toTBA) {
+            if (!tokenBoundClaimEnabled) revert TokenBoundClaimDisabled();
+            ClaimTBAConfig memory cfg = claimTBAConfigs[sourceContract];
+            if (cfg.registry == address(0) || cfg.chainId != block.chainid) revert InvalidTokenBoundAccount();
+            recipient = IERC6551RegistryMintbay(cfg.registry).createAccount(cfg.implementation, cfg.salt, cfg.chainId, sourceContract, sourceTokenId);
+            address expected = IERC6551RegistryMintbay(cfg.registry).account(cfg.implementation, cfg.salt, cfg.chainId, sourceContract, sourceTokenId);
+            if (recipient == address(0) || recipient != expected || recipient.code.length == 0) revert InvalidTokenBoundAccount();
+        }
+        uint256 tokenId = _mintSeededTo(recipient, 1, toTBA);
+        emit TokenClaimed(sourceContract, sourceTokenId, tokenId);
+        if (toTBA) emit TokenClaimedToTBA(sourceContract, sourceTokenId, tokenId, recipient);
+    }
+
+    function holderClaim(address sourceContract, uint256 sourceTokenId) external payable nonReentrant {
+        uint256 cost = _checkHolderClaim(sourceContract, sourceTokenId);
+        if (msg.value != cost) revert IncorrectPayment();
         _accruePayment(msg.value);
-        uint256 newTokenId = _mintSeeded(msg.sender, 1);
-        emit TokenClaimed(sourceContract, sourceTokenId, newTokenId);
+        _claimOne(sourceContract, sourceTokenId, false);
+    }
+
+    function claimToTBA(address sourceContract, uint256 sourceTokenId) external payable nonReentrant {
+        if (!tokenBoundClaimEnabled) revert TokenBoundClaimDisabled();
+        uint256 cost = _checkHolderClaim(sourceContract, sourceTokenId);
+        if (msg.value != cost) revert IncorrectPayment();
+        _accruePayment(msg.value);
+        _claimOne(sourceContract, sourceTokenId, true);
+    }
+
+    function batchHolderClaim(address[] calldata sourceContracts, uint256[] calldata sourceTokenIds) external payable nonReentrant {
+        _batchHolderClaim(sourceContracts, sourceTokenIds, false);
+    }
+
+    function batchClaimToTBA(address[] calldata sourceContracts, uint256[] calldata sourceTokenIds) external payable nonReentrant {
+        if (!tokenBoundClaimEnabled) revert TokenBoundClaimDisabled();
+        _batchHolderClaim(sourceContracts, sourceTokenIds, true);
+    }
+
+    function _batchHolderClaim(address[] calldata sourceContracts, uint256[] calldata sourceTokenIds, bool toTBA) internal {
+        uint256 count = sourceTokenIds.length;
+        if (count == 0 || count > MAX_BATCH_CLAIMS || sourceContracts.length != count) revert InvalidBatch();
+        if (_totalMinted() + count > maxSupply) revert MaxSupplyExceeded();
+        uint256 cost;
+        for (uint256 i; i < count; ++i) {
+            cost += _checkHolderClaim(sourceContracts[i], sourceTokenIds[i]);
+        }
+        if (msg.value != cost) revert IncorrectPayment();
+        _accruePayment(cost);
+        for (uint256 i; i < count; ++i) {
+            _claimOne(sourceContracts[i], sourceTokenIds[i], toTBA);
+        }
     }
 
     // --- Burn & Claim (1:1, Free) ---
     function burnAndClaim(address sourceCollection, uint256 sourceTokenId) external payable nonReentrant {
+        if (transfersLocked) revert NonTransferable();
         if (!burnClaimEnabled) revert BurnClaimDisabled();
         if (!approvedBurnClaimCollections[sourceCollection]) revert UnauthorizedCollection();
         if (IERC721(sourceCollection).ownerOf(sourceTokenId) != msg.sender) revert NotTokenOwner();
@@ -348,6 +458,7 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
 
     // --- One Shot Remint ---
     function oneShotRemint(uint256 tokenId) external nonReentrant {
+        if (transfersLocked) revert NonTransferable();
         if (!oneShotEnabled) revert OneShotDisabled();
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
 
@@ -364,6 +475,7 @@ abstract contract MintbayCoreERC721A is OwnableBasic, ERC721AC, BasicRoyalties, 
 
     // --- Universal Burn Interface ---
     function burn(uint256 tokenId) external {
+        if (transfersLocked) revert NonTransferable();
         _burn(tokenId, true);
     }
 

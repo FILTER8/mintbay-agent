@@ -46,3 +46,11 @@ node scripts/test-png-renderer-poc.mjs ./png-shards ./png-shards/renderer-poc
 ```
 
 **Not production-ready:** Solidity compilation and EVM gas tests have not been executed here. This POC does not yet integrate `choose(seed)`, exclusions, fingerprinting, full metadata or the NFT core renderer interface; production `generate-collection.mjs` and `prepare-deploy.mjs` are unchanged. No mainnet deployment. See [PNG renderer POC and EVM checklist](references/PNG-RENDERER-POC.md) and [shard limits](references/PNG-SHARD-LIMITS.md).
+
+## V7 NFT core feature flags (under EVM test)
+
+Mintbay's core can now optionally lock token transfers/burns, mint multiple holder claims in one transaction, route holder claims to ERC-6551 token-bound accounts and permanently disable **collection** ownership transfers. The existing PNG renderer and discovery are unchanged.
+
+For a reviewed deployment, create `v7-options.json` with `transfersLocked`, `tokenBoundClaimEnabled`, and `lockOwnershipTransfersImmediately` boolean fields and pass `--v7-options ./v7-options.json` to `scripts/prepare-deploy.mjs`. Read [`references/V7-CORE-OPTIONS.md`](references/V7-CORE-OPTIONS.md) for full constraints, claims, wallet configuration and verification requirements. Without options, V7 additions default off, except the newly available callable batch holder claim when Holder Claim was already enabled.
+
+**Deployment safety:** These additions passed generator regression checks, but *Solidity compilation and local EVM transaction/security tests are still pending*. No mainnet broadcast is approved by these source changes.
