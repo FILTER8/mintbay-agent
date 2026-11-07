@@ -3,26 +3,32 @@ name: mintbay-agent
 description: Mintbay V6 on-chain NFT deployment research, source generation, preflight compilation, Bankr transaction orchestration, NFT verification, ERC-6551 accounts, and Mintbay artwork editorial writing. Use for Mintbay collection builds, animations, on-chain mini-games, mint deployments and NFT analysis.
 ---
 
-# PNG renderer proof-of-concept gate (November 2026)
+# Packed PNG renderer integration (November 2026)
 
-The desired future architecture is packed immutable PNG bytecode shards + SVG `<image>` elements. Read [PNG-RENDERER-POC.md](references/PNG-RENDERER-POC.md) and [PNG-SHARD-LIMITS.md](references/PNG-SHARD-LIMITS.md). The POC renderer and local SVG reconstruction script are **experimental**, and the existing V6 generator/deployer **still use the old pixel-rectangle renderer**. Do not deploy the POC as a Mintbay collection or claim it passed Solidity compilation, EVM gas, metadata, or marketplace tests. The core collection renderer interface, trait chooser, feature parity and Net Protocol hooks must be preserved when integrating later. Do not alter discovery.
+Mintbay Studio V6 schema builds with `files.pngAssets` use the **packed PNG shard renderer** as the only newly generated artwork renderer. The generator now verifies *all* PNG hashes and exact source pixel parity, packs bytes into immutable code shards, preserves the V6 trait selector and fingerprint logic, and generates SVG `<image>` layers via `EXTCODECOPY`. Read [PNG-SHARD-LIMITS.md](references/PNG-SHARD-LIMITS.md) for the 24,576-byte runtime EIP-170 limit. **Do not use or deploy the old pixel-rectangle generator for new builds.** The separate POC in `assets/contracts/png-poc` is historical reference only, not an NFT deployment component.
+
+**SAFETY GATE:** The updated production generator passed local fixture/regression tests, but its generated Solidity and the complete CREATE2 deployment plan have **not yet** been compiled and exercised on a local EVM in this release. Do not broadcast live deployments based on it until the new output passes solc 0.8.24, local CREATE2 shard/renderer/core deployment, `traitPng`, `fingerprint`, tokenURI metadata/image parity, mint/claim/royalty/Net hooks, and gas/size testing. The preparer must remain unsigned; never change discovery.
 
 # Mintbay V6 - one repository, one active deployment architecture
 
 V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions, bytecode or deployment scripts. Do not maintain parallel deployment workflows.
 
-**CURRENT STATUS: CREATOR-APPROVED DEPLOYMENTS ENABLED.** The repository now generates a separate SVG renderer and NFT core and compiles both, but it generates one optional immutable HTML media initcode and `animation_url` from a supplied file, and generates unsigned CREATE2 predicted addresses and ABI-linked calldata, but has not passed local EVM metadata reconstruction tests, full ERC-6551 execution tests or safe runtime bytecode recovery verification. Do not claim local EVM, ERC-6551 execution or marketplace HTML compatibility tests have passed without evidence. The official agent may prepare and, following explicit creator authorization and on-chain preflight checks, submit deployment transactions via Bankr.
+**CURRENT STATUS: PNG INTEGRATION UNDER TEST; NO LIVE DEPLOYMENT.** The repository prepares a separate PNG renderer and NFT core, and can generate one optional immutable HTML media initcode and `animation_url` from a supplied file, and generates unsigned CREATE2 predicted addresses and ABI-linked calldata, but has not passed local EVM metadata reconstruction tests, full ERC-6551 execution tests or safe runtime bytecode recovery verification. Do not claim local EVM, ERC-6551 execution or marketplace HTML compatibility tests have passed without evidence. The official agent may prepare and, following explicit creator authorization and on-chain preflight checks, submit deployment transactions via Bankr.
+
+## PNG deployment preparation commands (unsigned only)
+
+Run `node scripts/verify-png-build.mjs BUILD_ID`, then `node scripts/test-generator.mjs`, then `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`. Use the optional `--html ./game.html` only with the marker documented below. Read `deployment-manifest.json` for ordered `pngShardN`, `dataShardN`, `data`, optional `chunk0`, `renderer`, `collection` steps and `*-create2-calldata.txt` artifacts. Each CREATE2 address includes constructor arguments in the initcode hash. Bankr must use file-based contract calldata, never inline >512-byte payloads. The data-shard code contains *only selection data*, not legacy raw palette pixel arrays. Only the original V6 NFT core contract remains unchanged.
 
 ## Single workflow
 
 1. Resolve the immutable Mintbay build manifest and verify all file SHA256 hashes, artwork parity, chain ID, creator ownership, and chosen features.
 2. Install dependencies: `npm install --prefix assets/contracts/v6 --no-audit --no-fund`.
 3. Run `node scripts/prepare-deploy.mjs BUILD_ID --out ./generated/BUILD_ID`.
-4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Manifest status `V6_UNSIGNED_DEPLOYMENT_PREPARED` allows Bankr to request explicit creator approval for an ordered deployment; the preparer itself never sends transactions.
+4. Read `deployment-manifest.json`, all ABI files and Solidity compiler warnings. Expected manifest status is `PNG_UNSIGNED_DEPLOYMENT_PREPARED`. It is NOT evidence of successful local EVM integration; do not broadcast before the safety gate above is satisfied. The preparer never sends transactions.
 5. For HTML games: use `node scripts/prepare-deploy.mjs BUILD_ID --html ./game.html --out ./generated/BUILD_ID`. The HTML must include exactly one `/* MINTBAY_NFT_INJECTION */` marker within a `<script>` before any code that reads `window.__MINTBAY_NFT__`. The entire UTF-8 HTML template including a 2-byte prefix must fit in one 20,000-byte immutable data contract. No HTML splitting. Do not treat generated media artifacts as already deployed or tested; obtain approval before submitting each live transaction.
 6. If a feature is selected, preserve it. Do not remove Holder Claim, Burn & Claim, One Shot, supply reduction, royalty enforcement, creator mint or Net hooks merely to satisfy bytecode limits.
 7. Validate external SVG renderer, NFT creation, feature parity and tokenURI decoding on a local EVM. Test lifetime mint caps and ERC-6551 account behavior. Do not claim a test passed unless executed. Creator-approved live deployment may proceed after Bankr verifies chain, deployed CREATE2 factory code, addresses, constructor arguments and all transaction dependencies; prominently disclose any untested runtime functionality.
-8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 transactions for data shards, data router, optional media, renderer and NFT core, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.
+8. Before Bankr executes a future multi-contract deployment, prepare ordered CREATE2 transactions for PNG shards, trait-selection data shards, data router, optional media, PNG renderer and NFT core, predicted addresses (factory + salt + initCode), simulation outputs, chain explorer verification material and recovery checks. Source verification and component hash verification are mandatory.
 9. Every component must satisfy EIP-170 runtime 24,576 bytes and EIP-3860 initcode 49,152 bytes; do not treat a compiler pass as an EVM test.
 10. Ethereum 1, Unichain 130, Polygon 137, Robinhood 4663, Base 8453 and Arbitrum 42161 are the configured target chains; verify chain-specific contracts before deployment.
 
@@ -30,7 +36,7 @@ V6 replaces V5.1 in this repository. Do not deploy using legacy V5 instructions,
 
 When asked to change NFT artwork, attach animation, build a playable on-chain HTML page, or upgrade a deployed Mintbay renderer, read [RENDERERS-AND-HTML.md](references/RENDERERS-AND-HTML.md) before proposing transactions.
 
-- **Standard V6 generator:** `setRenderer(address)` and `lockRenderer()` exist in generated collections; the owner can replace the renderer only while `isRendererLocked() == false`. The generated collection calls the renderer's `tokenURI(uint256,bytes32)` and `fingerprint(bytes32)`. Verify both and preserve the original token seeds and traits. `lockRenderer()` is irreversible.
+- **Standard PNG generator (V6 NFT core):** `setRenderer(address)` and `lockRenderer()` exist in generated collections; the owner can replace the renderer only while `isRendererLocked() == false`. The generated collection calls the renderer's `tokenURI(uint256,bytes32)` and `fingerprint(bytes32)`; both must preserve the original chooser and seed behavior. Verify both and preserve the original token seeds and traits. `lockRenderer()` is irreversible.
 - **HTML:** the standard `--html` media path accepts a single self-contained 20 KB chunk (including two prefix bytes) with exactly one `/* MINTBAY_NFT_INJECTION */` marker. It injects `id`, `seed`, `chosenTraits`; it does not inject canonical gameplay armour or token-bound wallet access by default.
 - **Advanced custom renderers:** ArcadeMachine's multi-chunk HTML, 8x8 boss, paid $OCH game and ERC-6551 wallets were implemented with additional custom contracts. Do not claim the stock generator or skill automatically produces this system.
 - **Safe upgrade:** inspect the live collection and renderer; prepare the replacement source and component pointers; verify all bytecode/chunk boundaries; decode representative tokenURI samples; run the HTML in a browser, including free play and wallet-bridge checks if applicable; then request explicit approval before `setRenderer`. Never silently lock the renderer.
@@ -41,7 +47,7 @@ Canonical registry `0x000000006551c19487814612e58FE06813775758` and account impl
 
 ## Media policy
 
-Use compact, self-contained SVG, SMIL animation and HTML mini-games only. Immutable bytecode for one <=20 KB HTML document and separate sharded artwork data with Solidity-side reconstruction are the intended V6 media architecture. Do not substitute IPFS, hostedon.net, storedon.net or external scripts as an equivalent fully autonomous deliverable. Do not claim OpenSea supports inline HTML data URIs until tested on the actual viewer.
+Use compact, self-contained SVG, SMIL animation and HTML mini-games only. Immutable bytecode for one <=20 KB HTML document and separate compressed PNG bytecode shards with SVG `<image>` composition are the current media architecture. Do not substitute IPFS, hostedon.net, storedon.net or external scripts as an equivalent fully autonomous deliverable. Do not claim OpenSea supports inline HTML data URIs until tested on the actual viewer.
 
 ## Bankr testing instructions
 
@@ -104,7 +110,7 @@ Legacy Mintbay.xyz token page (older collections only): `https://mintbay.xyz/tok
 
 Gallery: `https://mintbay.xyz/gallery/share?chain={chainId}&collection={contractAddress}&ids={comma-separated-ids}&grid={gridWidth}&gap=20&margin=68&scale=100&bg=white&labels=0`
 
-See [URLS.md](references/URLS.md). `node scripts/test-generator.mjs` only checks generation, not EVM execution.
+See [URLS.md](references/URLS.md). `node scripts/test-generator.mjs` checks PNG source generation, masks, locking and HTML regression fixtures; it does not prove Solidity compilation or EVM execution.
 
 ## Canonical Studio V6 build format
 
@@ -116,4 +122,4 @@ Strongly recommended before any live collection launch: locally mint and decode 
 
 ## PNG artwork shard preflight (unsigned)
 
-For immutable builds with `files.pngAssets`, run `node scripts/pack-png-shards.mjs BUILD_ID --out ./png-shards` and review `references/PNG-SHARD-LIMITS.md`. A bytecode shard may hold PNGs across multiple layers; a single PNG may span multiple shards. Verify hashes and reconstruction. This preflight is **not** a renderer deployment plan: do not deploy generated shards to mainnet until the new renderer and CREATE2 address wiring have passed local EVM tests. Never modify discovery.
+For immutable builds with `files.pngAssets`, first run `node scripts/verify-png-build.mjs BUILD_ID`, then `node scripts/pack-png-shards.mjs BUILD_ID --out ./png-shards` and review `references/PNG-SHARD-LIMITS.md`. A bytecode shard may hold PNGs across multiple layers; a single PNG may span multiple shards. Verify hashes and reconstruction. The updated `prepare-deploy.mjs` produces PNG shard → trait data → renderer → collection CREATE2 calldata. This remains **unsigned and unverified on EVM**; do not deploy generated shards to mainnet until Solidity compilation, complete EVM tests and exact CREATE2 reconstruction checks pass. Never modify discovery.

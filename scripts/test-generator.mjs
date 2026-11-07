@@ -1,8 +1,29 @@
-import {mkdtemp,writeFile,readFile} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,mkdir} from 'node:fs/promises';
+import {deflateSync} from 'node:zlib';
 import {tmpdir} from 'node:os';import {join} from 'node:path';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 import {fileURLToPath} from 'node:url';import {resolve} from 'node:path';
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
+function makePng(){
+ const crc=(b)=>{let c=0xffffffff;for(const x of b){c^=x;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;};
+ const chunk=(type,bytes)=>{const t=Buffer.from(type);const len=Buffer.alloc(4);len.writeUInt32BE(bytes.length);const cv=Buffer.alloc(4);cv.writeUInt32BE(crc(Buffer.concat([t,bytes])));return Buffer.concat([len,t,bytes,cv]);};
+ const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(2,0);ihdr.writeUInt32BE(2,4);ihdr[8]=8;ihdr[9]=6;
+ const row=Buffer.from([0,0,0,0,255,0,0,0,0]); const empty=Buffer.alloc(9);
+ return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(Buffer.concat([row,empty]))),chunk('IEND',Buffer.alloc(0))]);
+}
+async function addPngFixture(dir,artwork,manifest){
+ const asset=makePng(), assets=[];await mkdir(join(dir,'assets'),{recursive:true});
+ let index=0;
+ for(let li=0;li<artwork.layers.length;li++)for(let ti=0;ti<artwork.layers[li].traits.length;ti++){
+  const path=`assets/${String(index).padStart(6,'0')}.png`;
+  await writeFile(join(dir,path),asset);
+  assets.push({path,globalId:index,layerId:artwork.layers[li].id,layerIndex:li,traitIndex:ti,traitId:artwork.layers[li].traits[ti].id,width:2,height:2,bytes:asset.length,sha256:hash(asset)});
+  index++;
+ }
+ const png={schemaVersion:1,format:'mintbay-png-assets-v1',gridSize:2,assets};
+ const raw=JSON.stringify(png);await writeFile(join(dir,'png-manifest.json'),raw);
+ manifest.files.pngAssets={sha256:hash(raw),count:assets.length};
+}
 let lastFixtureDir=''; 
 for(const count of [3,260]){
  const dir=await mkdtemp(join(tmpdir(),'mb-gen-'));lastFixtureDir=dir;
@@ -17,13 +38,15 @@ for(const count of [3,260]){
  const a=JSON.stringify(artwork);const c={format:'mintbay-compiled-artwork-v1',source:{rawArtworkSha256:hash(a),gridSize:2},encoding:{wordsPerTrait:words},palette:['transparent','#000000'],layers:[{name:'Layer',offset:0,count:1},{name:'Next',offset:1,count:count-1}],traits:compiledTraits};
  const data={'config.json':JSON.stringify(config),'artwork.json':a,'compiled-artwork.json':JSON.stringify(c)};const manifest={schemaVersion:1,id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',chainId:4663,files:{}};
  for(const [fn,content] of Object.entries(data)){await writeFile(join(dir,fn),content);manifest.files[fn.replace('.json','').replace('compiled-artwork','compiledArtwork')]={sha256:hash(content)};}
+ await addPngFixture(dir,artwork,manifest);
  await writeFile(join(dir,'manifest.json'),JSON.stringify(manifest));
  execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',join(dir,'out')]);
- const src=await readFile(join(dir,'out','TestAData.sol'),'utf8');if(!src.includes('function layerOffset'))throw Error('layer offset regression');if(count===260){const shard=await readFile(join(dir,'out','TestADataShard0.sol'),'utf8');if(!shard.includes('id==0 && word==1'))throw Error('multiword mask regression');}
+ const src=await readFile(join(dir,'out','TestAData.sol'),'utf8');if(src.includes('function pixels('))throw Error('Legacy raw pixel selector unexpectedly present');if(!src.includes('function layerOffset'))throw Error('layer offset regression');if(count===260){const shard=await readFile(join(dir,'out','TestADataShard0.sol'),'utf8');if(!shard.includes('id==0 && word==1'))throw Error('multiword mask regression');}
  const col=await readFile(join(dir,'out','TestA.sol'),'utf8');if(!col.includes('██'))throw Error('unicode missing');
  if(!col.includes('function setRenderer(address newRenderer) external onlyOwner')||!col.includes('function lockRenderer() external onlyOwner')||!col.includes('bool public isRendererLocked;'))throw Error('Renderer update/seal functions missing');
  if(col.includes('immutable renderer'))throw Error('Renderer must be updateable until sealed');
  if(!col.includes('if (false) { isRendererLocked = true; emit RendererLocked(); }'))throw Error('Default renderer lock must be disabled');if(!col.includes('renderer.fingerprint(choice)'))throw Error('External trait lookup missing');if(!col.includes('renderer.tokenURI(tokenId,_tokenToSeed[tokenId])'))throw Error('External renderer hookup missing');if(!col.includes('_usedTraitCombinations'))throw Error('uniqueness missing');if(count===3&&!col.includes('approvedBurnClaimCollections[0x4e68e1F912d5D9c3fb6795B2af87FfaC87882575]'))throw Error('burn allowlist missing');if(!col.includes('0xB316e8ea7bC9B24ea5Fd4eBd07051678C27Ffe79'))throw Error('deployer checksum regression');if(!col.includes('0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653'))throw Error('claim checksum regression');
+ const render=await readFile(join(dir,'out','TestARenderer.sol'),'utf8'); if(!render.includes('extcodecopy')||!render.includes('data:image/png;base64,'))throw Error('PNG renderer not generated');
  const record=JSON.parse(await readFile(join(dir,'out','generation.json'),'utf8'));if(record.contractName!=='TestA')throw Error('contract name regression');
  console.log(`PASS ${count} traits generator and checksum checks`);
 }

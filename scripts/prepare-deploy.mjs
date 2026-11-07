@@ -27,6 +27,32 @@ function encodeAddresses(addresses) {
  const word=n=>BigInt(n).toString(16).padStart(64,'0');
  return word(32)+word(addresses.length)+addresses.map(hexAddress).join('');
 }
+function encodePngRendererArgs(dataAddress,shardAddresses,layout,mediaAddress){
+ const word=n=>BigInt(n).toString(16).padStart(64,'0');
+ const addressWord=a=>hexAddress(a);
+ const locations=layout.locations;
+ const starts=[0],shardIds=[],offsets=[],lengths=[];
+ for(const trait of locations){
+  for(const p of trait.pieces){
+   assert(Number.isInteger(p.shard)&&p.shard>=0&&p.shard<shardAddresses.length,'PNG piece shard invalid');
+   assert(Number.isInteger(p.offset)&&p.offset>=1&&p.offset<=0xffffffff,'PNG piece offset invalid');
+   assert(Number.isInteger(p.length)&&p.length>0&&p.length<=0xffffffff,'PNG piece length invalid');
+   shardIds.push(p.shard);offsets.push(p.offset);lengths.push(p.length);
+  }
+  starts.push(shardIds.length);
+ }
+ assert(starts.length>1 && starts.at(-1)===shardIds.length,'PNG layout offsets invalid');
+ const arrays=[shardAddresses.map(addressWord),starts.map(word),shardIds.map(word),offsets.map(word),lengths.map(word)];
+ const headWords=1+arrays.length+(mediaAddress?1:0);
+ let offset=headWords*32,head=[addressWord(dataAddress)],tail=[];
+ for(const arr of arrays){
+  head.push(word(offset));
+  const section=word(arr.length)+arr.join('');
+  tail.push(section);offset+=section.length/2;
+ }
+ if(mediaAddress)head.push(addressWord(mediaAddress));
+ return head.join('')+tail.join('');
+}
 function derivedSalt(buildId,role){return keccak256(Buffer.from('mintbay-v6:'+buildId+':'+role,'utf8'));}
 function computeCreate2(salt,init){
  const payload=Buffer.concat([Buffer.from([255]),Buffer.from(CREATE2_FACTORY.slice(2),'hex'),Buffer.from(salt,'hex'),Buffer.from(keccak256(init),'hex')]);
@@ -134,16 +160,33 @@ async function run(){
    mediaComponents.push({role:name,initCodeBytes:init.length,runtimeBytes:runtime.length,runtimeSha256:sha(runtime),payloadSha256:sha(raw),initCodeSha256:sha(init),initcodeFile:`${name}-initcode.txt`});
   }
  }
+ // Immutable packed PNG artwork shards, verified by the generator/packer.
+ const pngComponents=[];
+ assert(record.pngShardCount>0,'PNG shard metadata missing');
+ const pngLayout=JSON.parse(await readFile(join(generated,record.pngLayout),'utf8'));
+ assert(pngLayout.shardCount===record.pngShardCount && pngLayout.traitCount>0,'PNG layout mismatch');
+ for(let i=0;i<record.pngShardCount;i++){
+  const role=`pngShard${i}`;
+  const code=(await readFile(join(generated,'png',`${role}-initcode.txt`),'utf8')).trim();
+  assert(/^0x[0-9a-f]+$/i.test(code),'Invalid PNG initcode '+role);
+  const init=Buffer.from(code.slice(2),'hex');
+  const item=pngLayout.shards[i];
+  assert(sha(init)===item.initCodeSha256 && init.length===item.initCodeBytes,'PNG initcode hash mismatch '+role);
+  assert(item.runtimeBytes<=24576 && init.length<=49152,'PNG EVM limit '+role);
+  await writeFile(join(output,role+'-initcode.txt'),code+'\n');
+  initByRole.set(role,init);
+  pngComponents.push({role,initCodeBytes:init.length,runtimeBytes:item.runtimeBytes,runtimeSha256:item.runtimeSha256,initCodeSha256:sha(init),initcodeFile:role+'-initcode.txt'});
+ }
  // Resolve creation bytecodes in dependency order. Constructor arguments are part of the CREATE2 hash.
- const byRole=new Map([...components,...mediaComponents].map(x=>[x.role,x]));
- const order=[...components.filter(x=>x.role.startsWith('dataShard')).map(x=>x.role),'data',...mediaComponents.map(x=>x.role),'renderer','collection'];
+ const byRole=new Map([...components,...mediaComponents,...pngComponents].map(x=>[x.role,x]));
+ const order=[...pngComponents.map(x=>x.role),...components.filter(x=>x.role.startsWith('dataShard')).map(x=>x.role),'data',...mediaComponents.map(x=>x.role),'renderer','collection'];
  const predicted={}; const steps=[];
  for(const role of order){
   const component=byRole.get(role); assert(component,'Missing deployment component '+role);
   const base=initByRole.get(role);assert(base,'Missing initcode '+role);
   let constructorArgs='';
   if(role==='data')constructorArgs=encodeAddresses(order.filter(x=>x.startsWith('dataShard')).map(x=>predicted[x]));
-  if(role==='renderer')constructorArgs=hexAddress(predicted.data)+(record.media?hexAddress(predicted.chunk0):'');
+  if(role==='renderer')constructorArgs=encodePngRendererArgs(predicted.data,pngComponents.map(x=>predicted[x.role]),pngLayout,record.media?predicted.chunk0:null);
   if(role==='collection')constructorArgs=hexAddress(predicted.renderer);
   const init=Buffer.concat([base,Buffer.from(constructorArgs,'hex')]);
   assert(init.length<=49152,`EIP-3860 constructor-expanded initcode exceeded for ${role}: ${init.length}`);
@@ -151,9 +194,9 @@ async function run(){
   predicted[role]=address;
   const calldata='0x'+salt+init.toString('hex');
   await writeFile(join(output,role+'-create2-calldata.txt'),calldata+'\n');
-  steps.push({role,salt:'0x'+salt,factory:CREATE2_FACTORY,predictedAddress:address,initCodeKeccak256:'0x'+keccak256(init),initCodeSha256:sha(init),initCodeBytes:init.length,constructorArgsHex:'0x'+constructorArgs,create2CalldataFile:role+'-create2-calldata.txt',dependencies:role==='data'?order.filter(x=>x.startsWith('dataShard')):role==='renderer'?['data',...(record.media?['chunk0']:[])]:role==='collection'?['renderer']:[]});
+  steps.push({role,salt:'0x'+salt,factory:CREATE2_FACTORY,predictedAddress:address,initCodeKeccak256:'0x'+keccak256(init),initCodeSha256:sha(init),initCodeBytes:init.length,constructorArgsHex:'0x'+constructorArgs,create2CalldataFile:role+'-create2-calldata.txt',dependencies:role==='data'?order.filter(x=>x.startsWith('dataShard')):role==='renderer'?['data',...pngComponents.map(x=>x.role),...(record.media?['chunk0']:[])]:role==='collection'?['renderer']:[]});
  }
- const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,media:record.media,components:[...mediaComponents,...components],deploymentOrder:order,predicted,create2Factory:CREATE2_FACTORY,steps,erc6551:record.chainId===4663?{registry:'0x000000006551c19487814612e58FE06813775758',implementation:'0x62DF5D2C60b9B434D017cf90765c4a96e0d486a5',salt:'0x'+BigInt(1).toString(16).padStart(64,'0'),mode:'lazy-account-creation'}:null,status:'V6_UNSIGNED_DEPLOYMENT_PREPARED',broadcastPolicy:{mode:'creator_approved_bankr',requiresExplicitApproval:true,preparedOnly:true},warnings:['Unsigned transaction preparation only; Bankr broadcasts solely after the creator explicitly approves each transaction','Verify chain ID, CREATE2 factory code, constructor arguments, deployed code and immutable configuration before sending or reusing transactions','Local EVM mint/tokenURI and ERC-6551 execution tests have not been proven by this preparer','The independent ArcadeGamingVault is NOT a Mintbay V6 deployment dependency and MUST NOT be deployed or enabled implicitly']};
+ const manifest={version:6,buildId:record.buildId,chainId:record.chainId,bankrChain:chainNames[record.chainId],nativeCurrency,netEnabled,sourceHashes:record.sourceHashes,compiler:solc.version(),standardInputSha256,media:record.media,png: {shardCount:pngLayout.shardCount,traitCount:pngLayout.traitCount,totalPngBytes:pngLayout.totalPngBytes},components:[...pngComponents,...mediaComponents,...components],deploymentOrder:order,predicted,create2Factory:CREATE2_FACTORY,steps,erc6551:record.chainId===4663?{registry:'0x000000006551c19487814612e58FE06813775758',implementation:'0x62DF5D2C60b9B434D017cf90765c4a96e0d486a5',salt:'0x'+BigInt(1).toString(16).padStart(64,'0'),mode:'lazy-account-creation'}:null,status:'PNG_UNSIGNED_DEPLOYMENT_PREPARED',broadcastPolicy:{mode:'creator_approved_bankr',requiresExplicitApproval:true,preparedOnly:true},warnings:['Unsigned transaction preparation only; Bankr broadcasts solely after the creator explicitly approves each transaction','Verify chain ID, CREATE2 factory code, constructor arguments, deployed code and immutable configuration before sending or reusing transactions','Local EVM mint/tokenURI and ERC-6551 execution tests have not been proven by this preparer','The independent ArcadeGamingVault is NOT a Mintbay V6 deployment dependency and MUST NOT be deployed or enabled implicitly']};
  await writeFile(join(output,'deployment-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
  console.log(JSON.stringify(manifest,null,2));
 
