@@ -125,6 +125,29 @@ for(const count of [3,260]){
  const core=await readFile(join(out,'contracts/MintbayCoreERC721A.sol'),'utf8');
  for(const method of ['batchHolderClaim(', 'batchClaimToTBA(', 'claimToTBA(', 'lockOwnershipTransfers(', '_beforeTokenTransfers('])if(!core.includes(method))throw Error('Missing V7 core method '+method);
  console.log('PASS V7 constructor flags and core methods');
+ // Regression: the immutable V7 build may embed ERC-6551 TBA configurations.
+ const tbaSource='0x2eE6305804dD94F7ff695C5Ab1f3AE805f317653';
+ cfg.mintbayV7={transfersLocked:false,tokenBoundClaimEnabled:true,lockOwnershipTransfersImmediately:false,tbaConfigs:[{
+  sourceCollection:tbaSource,registry:'0x000000006551c19487814612e58FE06813775758',
+  implementation:'0x62DF5D2C60b9B434D017cf90765c4a96e0d486a5',
+  salt:'0x'+'0'.repeat(63)+'1',accountChainId:4663
+ }]};
+ const embedded=JSON.stringify(cfg);await writeFile(join(dir,'config.json'),embedded);
+ mf.files.config.sha256=hash(embedded);await writeFile(join(dir,'manifest.json'),JSON.stringify(mf));
+ const embeddedOut=await mkdtemp(join(tmpdir(),'mb-embedded-v7-'));
+ execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',embeddedOut]);
+ const embeddedRecord=JSON.parse(await readFile(join(embeddedOut,'generation.json'),'utf8'));
+ if(embeddedRecord.tbaConfigs?.length!==1 || embeddedRecord.tbaConfigs[0].sourceCollection!==tbaSource)throw Error('Embedded V7 TBA config lost');
+ const embeddedRenderer=await readFile(join(embeddedOut,'TestARenderer.sol'),'utf8');
+ if(!embeddedRenderer.includes('uint256 lo=traitStarts[traitId];') || embeddedRenderer.includes('uint256 lo=traitStarts[traitId],hi='))throw Error('PNG renderer variable declaration regression');
+ // A missing or non-whitelisted source must fail before Solidity generation.
+ cfg.mintbayV7.tbaConfigs[0].sourceCollection='0x3333333333333333333333333333333333333333';
+ const invalidEmbedded=JSON.stringify(cfg);await writeFile(join(dir,'config.json'),invalidEmbedded);
+ mf.files.config.sha256=hash(invalidEmbedded);await writeFile(join(dir,'manifest.json'),JSON.stringify(mf));
+ try {execFileSync('node',[join(root,'scripts/generate-collection.mjs'),'--local','--dir',dir,'--out',join(dir,'bad-tba')],{stdio:'pipe'});throw Error('Unknown TBA source accepted');}
+ catch(e){if(e.message==='Unknown TBA source accepted')throw e;if(!String(e.stderr).includes('TBA source must be an approved'))throw Error('Unexpected TBA validation failure '+e.stderr);}
+ console.log('PASS embedded V7 TBA configurations, validation, and renderer syntax');
+ delete cfg.mintbayV7;
  // An irreversible transfer lock must not coexist with burn-and-claim or One Shot.
  cfg.mintbayV6.oneShot.enabled=true;
  const bad=JSON.stringify(cfg);await writeFile(join(dir,'config.json'),bad);

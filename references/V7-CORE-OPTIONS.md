@@ -1,6 +1,6 @@
 # Mintbay V7 core feature options — deployment reference
 
-The Mintbay Studio build is still immutable **V6 artwork/config schema**. V7 core features are selected at deployment source generation with a separately audited `--v7-options` JSON file, or with `config.mintbayV7` in a future published build. The generator hashes the resolved options and records them in `generation.json` and `deployment-manifest.json`. That separate options file is **not authenticated by the Studio build manifest**, so the creator must review and explicitly approve it and the constructor arguments.
+The Mintbay Studio build is still immutable **V6 artwork/config schema**. V7 core features are selected at deployment source generation with a separately audited `--v7-options` JSON file, or from the SHA-256 authenticated `config.mintbayV7` in the current immutable build. The generator hashes the resolved options and records them in `generation.json` and `deployment-manifest.json`. That separate options file is **not authenticated by the Studio build manifest**, so the creator must review and explicitly approve it and the constructor arguments.
 
 ## Example `v7-options.json`
 
@@ -12,7 +12,7 @@ The Mintbay Studio build is still immutable **V6 artwork/config schema**. V7 cor
 }
 ```
 
-Only these three boolean options are accepted. Defaults are `false`; no live-deployed contract is modified. `--v7-options` takes precedence over embedded `config.mintbayV7`. Configured immutable parent collections and claim prices still originate from the signed/hashed build.
+The three feature flags are boolean; `tbaConfigs` is an optional array of source-specific ERC-6551 configuration entries (`sourceCollection`, `registry`, `implementation`, `salt`, `accountChainId`). Unspecified flags default to `false`; embedded TBA configurations are retained when an override file changes flags; no live-deployed contract is modified. `--v7-options` takes precedence over embedded `config.mintbayV7`. Configured immutable parent collections and claim prices still originate from the signed/hashed build.
 
 ## Generation and compilation
 
@@ -37,3 +37,7 @@ The source generator and deploy preparer both propagate the flags and record a S
 3. `setClaimTBAConfig(source,registry,implementation,salt,chainId)` is per source. The collection owner decides which ERC-6551 account is canonical. Inspect deployed registry, implementation and the actual wallet ownership/receiver behavior before sending claims. It is not a generic method for all unknown TBA implementations without configuration.
 4. This repository update does not touch the PNG renderer, discovery worker, Cloudflare Studio frontend, already deployed collections, or transaction signing. UI forms must follow verified ABI and runtime behavior, not precede them.
 5. Audit EVM compatibility of the non-transferable hook against the exact pinned `ERC721AC` dependency before any live deployment, and confirm that all potential burn and transfer entrypoints are covered. Reentrancy, malicious registry, owner-change and claim replay adversarial tests are required.
+
+## Unsigned TBA setup manifest
+
+For builds containing `mintbayV7.tbaConfigs`, `prepare-deploy.mjs` emits a `postDeploymentActions` array with the full `setClaimTBAConfig(address,address,address,bytes32,uint256)` calldata, caller preconditions, and required readback checks. Require creator approval and deployed-code verification before submitting these owner-only transactions. Do not consider the TBA claim path available until each configured source has been initialized and verified.

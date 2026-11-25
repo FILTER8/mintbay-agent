@@ -209,7 +209,9 @@ ${mediaImport}contract ${nm} {
     }
     function traitPng(uint256 traitId) public view returns(bytes memory out) {
         require(traitId<${c.traits.length},"Trait ID");
-        uint256 lo=traitStarts[traitId],hi=traitStarts[traitId+1],size;
+        uint256 lo=traitStarts[traitId];
+        uint256 hi=traitStarts[traitId+1];
+        uint256 size;
         for(uint256 i=lo;i<hi;++i)size+=pieces[i].length;
         out=new bytes(size);uint256 copied;
         for(uint256 i=lo;i<hi;++i){
@@ -283,14 +285,40 @@ function makeCollection(s,id){const {co,v,sources}=s;const royalty=v.royalties;c
 function configAddress(s){return s.expectedDeployer;}
 async function main(){const all=await load();const s=check(all);
  const v7Path=pick('--v7-options');
- const v7=v7Path?await readJson(resolve(v7Path)):(all.config.mintbayV7||{});
- ok(v7 && typeof v7==='object' && !Array.isArray(v7),'Invalid V7 options');
- for(const key of Object.keys(v7))ok(['transfersLocked','tokenBoundClaimEnabled','lockOwnershipTransfersImmediately'].includes(key),'Unknown V7 option '+key);
- for(const value of Object.values(v7))ok(typeof value==='boolean','V7 options must be booleans');
- s.v7={transfersLocked:v7.transfersLocked===true,tokenBoundClaimEnabled:v7.tokenBoundClaimEnabled===true,lockOwnershipTransfersImmediately:v7.lockOwnershipTransfersImmediately===true};
+ // Embedded build options are SHA-256 committed by the immutable build manifest.
+ // An explicit options file overrides flags only; never silently drops embedded TBA configuration.
+ const embedded=all.config.mintbayV7||{};
+ const overrides=v7Path?await readJson(resolve(v7Path)):{};
+ ok(embedded && typeof embedded==='object' && !Array.isArray(embedded),'Invalid embedded V7 options');
+ ok(overrides && typeof overrides==='object' && !Array.isArray(overrides),'Invalid override V7 options');
+ const allowed=['transfersLocked','tokenBoundClaimEnabled','lockOwnershipTransfersImmediately','tbaConfigs'];
+ for(const [key,value] of Object.entries({...embedded,...overrides})){
+  ok(allowed.includes(key),'Unknown V7 option '+key);
+  if(key!=='tbaConfigs')ok(typeof value==='boolean','V7 option '+key+' must be boolean');
+ }
+ const v7={...embedded,...overrides};
+ const flags={transfersLocked:v7.transfersLocked===true,tokenBoundClaimEnabled:v7.tokenBoundClaimEnabled===true,lockOwnershipTransfersImmediately:v7.lockOwnershipTransfersImmediately===true};
+ const tbaConfigs=v7.tbaConfigs??[];
+ ok(Array.isArray(tbaConfigs),'mintbayV7.tbaConfigs must be an array');
+ ok(tbaConfigs.length<=5,'At most five TBA configurations are supported');
+ ok(flags.tokenBoundClaimEnabled || tbaConfigs.length===0,'TBA configurations require tokenBoundClaimEnabled');
+ const holderSources=(s.v.holderClaim?.sourceCollections||[]).map(x=>x.contract.toLowerCase());
+ const seen=new Set();
+ for(const cfg of tbaConfigs){
+  ok(cfg && typeof cfg==='object' && !Array.isArray(cfg),'Invalid TBA config');
+  ok(Object.keys(cfg).every(k=>['sourceCollection','registry','implementation','salt','accountChainId'].includes(k)),'Unknown TBA configuration field');
+  ok(addr(cfg.sourceCollection)&&addr(cfg.registry)&&addr(cfg.implementation),'Invalid TBA contract address');
+  ok(/^0x[0-9a-fA-F]{64}$/.test(cfg.salt||''),'Invalid TBA bytes32 salt');
+  ok(cfg.accountChainId===all.manifest.chainId,'TBA accountChainId must match deployment chain');
+  const source=cfg.sourceCollection.toLowerCase();
+  ok(holderSources.includes(source),'TBA source must be an approved holder claim source');
+  ok(!seen.has(source),'Duplicate TBA source collection');seen.add(source);
+ }
+ s.v7=flags;
+ s.tbaConfigs=tbaConfigs.map(c=>({...c}));
  if(s.v7.transfersLocked){ok(!s.v.burnAndClaim?.enabled && !s.v.oneShot?.enabled,'Locked collection cannot enable burn and claim or one-shot');ok(!s.v.royalties?.enabled && s.co.royaltyBps===0,'Locked collection must have zero royalties');}
  if(s.v7.tokenBoundClaimEnabled)ok(s.v.holderClaim?.enabled,'TBA claims require holder claim');
- s.v7ConfigHash=sha(Buffer.from(JSON.stringify(s.v7)));
+ s.v7ConfigHash=sha(Buffer.from(JSON.stringify({ ...s.v7,tbaConfigs:s.tbaConfigs })));
  s.expectedDeployer=all.config.deployment.expectedDeployer;ok(all.config.lockRendererImmediately === undefined || typeof all.config.lockRendererImmediately === 'boolean','lockRendererImmediately must be a boolean');s.lockRendererImmediately = all.config.lockRendererImmediately === true;
  const build=all.manifest.id;const id=toPascalCase(s.co.name);ok(nameSafe(id),'Bad identifier');
  const htmlFile=pick('--html');
@@ -326,7 +354,7 @@ async function main(){const all=await load();const s=check(all);
  const outputs={ ...dataFiles.outputs,[`${id}Renderer.sol`]:makeRenderer(s,id,!!media),[`${id}.sol`]:makeCollection(s,id)};
  await mkdir(join(dest,'contracts'),{recursive:true});const base=join(repo,'assets/contracts/v6/MintbayCoreERC721A.sol');await copyFile(base,join(dest,'contracts/MintbayCoreERC721A.sol'));
  const hashes={};for(const [f,content] of Object.entries(outputs)){await writeFile(join(dest,f),content);hashes[f]=sha(content);}hashes['contracts/MintbayCoreERC721A.sol']=sha(await readFile(base));
- const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:7,v7Features:s.v7,v7OptionsSha256:s.v7ConfigHash,media,dataShardCount:dataFiles.shardCount,pngShardCount:png.shardCount,pngLayout:'png/png-shards.json',pngPayloadBytes:png.totalPngBytes,mode:'packed-png-external-renderer',note:'Mintbay V6 schema, full local EVM tests pending. No broadcast.'};
+ const record={buildId:build,contractName:id,chainId:all.manifest.chainId,sourceHashes:hashes,configSha256:all.manifest.files.config.sha256,artworkSha256:all.manifest.files.artwork.sha256,compiledSha256:all.manifest.files.compiledArtwork.sha256,version:7,v7Features:s.v7,tbaConfigs:s.tbaConfigs,v7OptionsSha256:s.v7ConfigHash,media,dataShardCount:dataFiles.shardCount,pngShardCount:png.shardCount,pngLayout:'png/png-shards.json',pngPayloadBytes:png.totalPngBytes,mode:'packed-png-external-renderer',note:'Mintbay V6 schema, full local EVM tests pending. No broadcast.'};
  await writeFile(join(dest,'generation.json'),JSON.stringify(record,null,2)+'\n');
  console.log(JSON.stringify({status:'PNG_GENERATED_UNVERIFIED',directory:dest,...record},null,2));
 }
